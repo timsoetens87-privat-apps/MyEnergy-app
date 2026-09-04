@@ -1,0 +1,6 @@
+flask>=3.0.0
+requests>=2.31.0
+waitress>=3.0.0
+pymodbus>=3.6.0
+huawei-solar>=2.4.0,<3.0.0
+psycopg[binary]>=3.1.18

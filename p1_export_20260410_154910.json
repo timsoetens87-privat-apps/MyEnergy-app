@@ -1,0 +1,35 @@
+{
+  "current": {
+    "timestamp": "2026-04-10T15:49:09.988152",
+    "power_import": 0.0,
+    "power_export": 0.0,
+    "energy_import_t1": 0.0,
+    "energy_import_t2": 0.0,
+    "energy_export_t1": 0.0,
+    "energy_export_t2": 0.0,
+    "gas_usage": 0.0,
+    "voltage_l1": 0.0,
+    "voltage_l2": 0.0,
+    "voltage_l3": 0.0,
+    "current_l1": 0.0,
+    "current_l2": 0.0,
+    "current_l3": 0.0,
+    "frequency": 50.0,
+    "tariff": 1,
+    "power_failures": 0,
+    "long_power_failures": 0
+  },
+  "historical": [],
+  "daily_aggregates": {},
+  "meter_status": null,
+  "sync_timestamp": "2026-04-10T15:49:09.855598",
+  "stats": {
+    "measurements": 0,
+    "daily_aggregates": 0,
+    "date_range": {
+      "start": null,
+      "end": null
+    },
+    "database_size_mb": 0.05
+  }
+}

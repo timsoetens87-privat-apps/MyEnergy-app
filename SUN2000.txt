@@ -1,0 +1,6908 @@
+Solar Inverter Modbus Interface Definitions
+Issue 04
+Date 2023-01-10
+HUAWEI TECHNOLOGIES CO., LTD.
+ 
+ 
+Copyright © Huawei Technologies Co., Ltd. 2023. All rights reserved.
+No part of this document may be reproduced or transmitted in any form or by any means without prior
+written consent of Huawei Technologies Co., Ltd.
+ 
+Trademarks and Permissions
+ and other Huawei trademarks are trademarks of Huawei Technologies Co., Ltd.
+All other trademarks and trade names mentioned in this document are the property of their respective
+holders.
+ 
+Notice
+The purchased products, services and features are stipulated by the contract made between Huawei and
+the customer. All or part of the products, services and features described in this document may not be
+within the purchase scope or the usage scope. Unless otherwise specified in the contract, all statements,
+information, and recommendations in this document are provided "AS IS" without warranties, guarantees
+or representations of any kind, either express or implied.
+The information in this document is subject to change without notice. Every effort has been made in the
+preparation of this document to ensure accuracy of the contents, but all statements, information, and
+recommendations in this document do not constitute a warranty of any kind, express or implied.
+  
+ 
+ 
+ 
+ 
+ 
+Huawei Technologies Co., Ltd.
+Address: Huawei Industrial Base
+Bantian, Longgang
+Shenzhen 518129
+People's Republic of China
+Website: https://e.huawei.com
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. i
+About This Document
+Change History
+Issue Date Description
+04 2023-01-10 Some register interfaces are added in this issue.
+03 2022-03-29 Some register interfaces are added in this issue.
+02 2022-01-21 This issue is the second official release.
+01 2019-10-31 This issue is the first official release.
+Solar Inverter Modbus Interface Definitions About This Document
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. ii
+Contents
+About This Document................................................................................................................ ii
+1 Supported Models................................................................................................................... 1
+1.1 Model Description................................................................................................................................................................... 1
+2 Overview....................................................................................................................................8
+2.1 Terms and Abbreviations...................................................................................................................................................... 8
+3 Register Definitions.............................................................................................................. 10
+3.1 Inverter Equipment Register............................................................................................................................................. 10
+3.2 Battery Equipment Registe................................................................................................................................................ 23
+3.3 Meter Equipment Register.................................................................................................................................................67
+4 Customized Interfaces..........................................................................................................70
+4.1 Obtaining the System Information of Optimizers.....................................................................................................70
+4.2 Obtaining Real-time Data of Optimizers..................................................................................................................... 72
+5 Interface Instructions........................................................................................................... 76
+5.1 Alarm Information................................................................................................................................................................76
+5.2 Power Grid Scheduling........................................................................................................................................................79
+5.2.1 cosφ-P/Pn Characteristic Curve.................................................................................................................................... 79
+5.2.2 Q-U Characteristic Curve................................................................................................................................................ 80
+5.2.3 PF-U Characteristic Curve............................................................................................................................................... 81
+5.3 Grid Codes............................................................................................................................................................................... 82
+5.4 Energy Storage Specifications...........................................................................................................................................92
+6 Overview of the Communications Protocol....................................................................97
+6.1 Physical Layer......................................................................................................................................................................... 97
+6.2 Data Link Layer......................................................................................................................................................................97
+6.2.1 Modbus-RTU....................................................................................................................................................................... 98
+6.2.1.1 ADU Length......................................................................................................................................................................98
+6.2.1.2 Communications Address............................................................................................................................................ 98
+6.2.1.3 CRC......................................................................................................................................................................................98
+6.2.2 Modbus-TCP........................................................................................................................................................................ 99
+6.2.2.1 ADU Length......................................................................................................................................................................99
+6.2.2.2 MBAP Packet Header................................................................................................................................................. 100
+6.2.2.3 Communications Address......................................................................................................................................... 101
+Solar Inverter Modbus Interface Definitions Contents
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. iii
+6.2.2.4 TCP Port.......................................................................................................................................................................... 101
+6.2.2.5 TCP Link Establishment Process............................................................................................................................. 101
+6.3 Application Layer................................................................................................................................................................ 102
+6.3.1 Function Code List.......................................................................................................................................................... 102
+6.3.2 Exception Code List........................................................................................................................................................ 102
+6.3.3 Reading Registers (0x03)............................................................................................................................................. 104
+6.3.3.1 Frame Format of a Request from a Master Node........................................................................................... 104
+6.3.3.2 Frame Format of a Normal Response from a Slave Node............................................................................104
+6.3.3.3 Frame Format of an Abnormal Response from a Slave Node.....................................................................104
+6.3.3.4 Examples.........................................................................................................................................................................104
+6.3.4 Writing a Single Register (0x06)............................................................................................................................... 106
+6.3.4.1 Frame Format of a Request from a Master Node........................................................................................... 106
+6.3.4.2 Frame Format of a Normal Response from a Slave Node............................................................................106
+6.3.4.3 Frame Format of an Abnormal Response from a Slave Node.....................................................................106
+6.3.4.4 Examples.........................................................................................................................................................................107
+6.3.5 Writing Multiple Registers (0x10).............................................................................................................................108
+6.3.5.1 Frame Format of a Request from a Master Node........................................................................................... 108
+6.3.5.2 Frame Format of a Normal Response from a Slave Node............................................................................109
+6.3.5.3 Frame Format of an Abnormal Response from a Slave Node.....................................................................109
+6.3.5.4 Examples.........................................................................................................................................................................109
+6.3.6 Reading Device Identifiers (0x2B)............................................................................................................................. 111
+6.3.6.1 Command for Querying Device Identifiers......................................................................................................... 112
+6.3.6.2 Command for Querying a Device List.................................................................................................................. 113
+6.3.6.3 Device Description Definition.................................................................................................................................. 114
+6.3.7 Huawei-defined Functions (0x41).............................................................................................................................115
+6.3.7.1 Uploading Files.............................................................................................................................................................115
+6.3.7.1.1 Starting the Upload.................................................................................................................................................116
+6.3.7.1.2 Uploading Data.........................................................................................................................................................117
+6.3.7.1.3 Completing the Data Upload...............................................................................................................................118
+6.3.7.1.4 Timeout Processing..................................................................................................................................................119
+Solar Inverter Modbus Interface Definitions Contents
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. iv
+1 Supported Models
+This chapter describes the solar inverter models that use the Modbus protocol and
+the earliest firmware version. When a host needs to connect to these solar
+inverters, ensure that the firmware version is correct.
+1.1 Model Description
+Table 1-1 Supported models and firmware versions
+Model Model ID Earliest Firm Version
+SUN2000-2KTL-L0 338 SUN2000L V100R001C00
+SUN2000-2KTL-L1 349 SUN2000L V200R001C00
+SUN2000-3KTL-CNL0 334 SUN2000L V100R001C20
+SUN2000-3KTL-L0 339 SUN2000L V100R001C00
+SUN2000-3KTL-L1 348 SUN2000L V200R001C00
+SUN2000-3KTL-M0 410 SUN2000MA V100R001C00
+SUN2000-3KTL-M1 424 SUN2000MA V100R001C00
+SUN2000-3.68KTL-L10 347 SUN2000L V200R001C0
+SUN2000-3.8KTL-USL0 318 SUN2000L V100R001C10
+SUN2000-3.8KTL-USL0 319 SUN2000L V100R001C10
+SUN2000-4KTL-CNL0 335 SUN2000L V100R001C20
+SUN2000-4KTL-L0 340 SUN2000L V100R001C00
+SUN2000-4KTL-L1 346 SUN2000L V200R001C00
+SUN2000-4KTL-M0 411 SUN2000MA V100R001C00
+SUN2000-4KTL-M1 425 SUN2000MA V100R001C00
+Solar Inverter Modbus Interface Definitions 1 Supported Models
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 1
+Model Model ID Earliest Firm Version
+SUN2000-4.6KTL-L1 345 SUN2000L V200R001C00
+SUN2000-4.95KTL-JPL0 342 SUN2000L V100R001C20
+SUN2000-4.95KTL-JPL1 350 SUN2000L V200R001C00
+SUN2000-4.95KTL-NHL2 351 SUN2000L V200R001C00
+SUN2000-5KTL-CNL0 336 SUN2000L V100R001C20
+SUN2000-5KTL-L0 341 SUN2000L V100R001C00
+SUN2000-5KTL-L1 344 SUN2000L V200R001C00
+SUN2000-5KTL-M0 400 SUN2000MA V100R001C00
+SUN2000-5KTL-M0 401 SUN2000MA V100R001C00
+SUN2000-5KTL-M1 426 SUN2000MA V100R001C00
+SUN2000-5KTL-USL0 315 SUN2000L V100R001C10
+SUN2000-5KTL-USL0 316 SUN2000L V100R001C10
+SUN2000-6KTL-CNL0 337 SUN2000L V100R001C20
+SUN2000-6KTL-L1 343 SUN2000L V200R001C00
+SUN2000-6KTL-M0 402 SUN2000MA V100R001C00
+SUN2000-6KTL-M0 403 SUN2000MA V100R001C00
+SUN2000-6KTL-M1 427 SUN2000MA V100R001C00
+SUN2000-7.6KTL-USL0 312 SUN2000L V100R001C10
+SUN2000-7.6KTL-USL0 313 SUN2000L V100R001C10
+SUN2000-8KTL 5 SUN2000 V100R001
+SUN2000-8KTL 415 SUN2000MA V100R001C10
+SUN2000-8KTL-M0 404 SUN2000MA V100R001C00
+SUN2000-8KTL-M0 405 SUN2000MA V100R001C00
+SUN2000-8KTL-M0 418 SUN2000MA V100R001C10
+SUN2000-8KTL-M1 428 SUN2000MA V100R001C00
+SUN2000-8KTL-M2 430 SUN2000MA V100R001C10
+SUN2000-9KTL-USL0 324 SUN2000L V100R001C10
+SUN2000-9KTL-USL0 325 SUN2000L V100R001C10
+SUN2000-10KTL 4 SUN2000 V100R001
+SUN2000-10KTL 416 SUN2000MA V100R001C10
+Solar Inverter Modbus Interface Definitions 1 Supported Models
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 2
+Model Model ID Earliest Firm Version
+SUN2000-10KTL-M0 406 SUN2000MA V100R001C00
+SUN2000-10KTL-M0 407 SUN2000MA V100R001C00
+SUN2000-10KTL-M0 419 SUN2000MA V100R001C10
+SUN2000-10KTL-M1 429 SUN2000MA V100R001C00
+SUN2000-10KTL-M2 431 SUN2000MA V100R001C10
+SUN2000-10KTL-USL0 332 SUN2000L V100R001C10
+SUN2000-10KTL-USL0 333 SUN2000L V100R001C10
+SUN2000-11.4KTL-USL0 321 SUN2000L V100R001C10
+SUN2000-11.4KTL-USL0 322 SUN2000L V100R001C10
+SUN2000-12KTL 3 SUN2000 V100R001
+SUN2000-12KTL 417 SUN2000MA V100R001C10
+SUN2000-12KTL-M0 408 SUN2000MA V100R001C00
+SUN2000-12KTL-M0 420 SUN2000MA V100R001C10
+SUN2000-12KTL-M1 463 SUN2000MA V100R001C00
+SUN2000-12KTL-M2 432 SUN2000MA V100R001C10
+SUN2000-15KTL 2 SUN2000 V100R001
+SUN2000-15KTL-M0 412 SUN2000MA V100R001C10
+SUN2000-15KTL-M0 421 SUN2000MA V100R001C10
+SUN2000-15KTL-M2 433 SUN2000MA V100R001C10
+SUN2000-15KTL-M3 436 SUN2000MA V100R001C20
+SUN2000-17KTL 1 SUN2000 V100R001
+SUN2000-17KTL-M0 413 SUN2000MA V100R001C10
+SUN2000-17KTL-M0 422 SUN2000MA V100R001C10
+SUN2000-17KTL-M2 434 SUN2000MA V100R001C10
+SUN2000-17KTL-M3 437 SUN2000MA V100R001C20
+SUN2000-20KTL 0 SUN2000 V100R001
+SUN2000-20KTL-M0 414 SUN2000MA V100R001C10SUN2000MA
+SUN2000-20KTL-M0 423 SUN2000MA V100R001C10SUN2000MA
+SUN2000-20KTL-M2 435 SUN2000MA V100R001C10
+SUN2000-20KTL-M3 438 SUN2000MA V100R001C20
+Solar Inverter Modbus Interface Definitions 1 Supported Models
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 3
+Model Model ID Earliest Firm Version
+SUN2000-20KTL-M3 457 SUN2000MA V100R001C20
+SUN2000-22KTL-US 25 SUN2000 V200R001C02
+SUN2000-23KTL 17 SUN2000 V100R001
+SUN2000-23KTL-M3 439 SUN2000MA V100R001C20
+SUN2000-24.5KTL 16 SUN2000 V100R001
+SUN2000-24.5KTL-M3 440 SUN2000MA V100R001C20
+SUN2000-24.7KTL-JP 32 SUN2000 V200R002C00
+SUN2000-25KTL-NAM3 441 SUN2000MA V100R001C20
+SUN2000-25KTL-US 21 SUN2000 V200R001C02
+SUN2000-28KTL 18 SUN2000 V100R001
+SUN2000-28KTL-M3 442 SUN2000MA V100R001C20
+SUN2000-29.9KTL 60 SUN2000 V200R002C00
+SUN2000-29.9KTL-M3 443 SUN2000MA V100R001C20
+SUN2000-29.9KTL-M3 458 SUN2000MA V100R001C20
+SUN2000-30KTL-A 23 SUN2000 V200R001C90
+SUN2000-30KTL-M3 444 SUN2000MA V100R001C20
+SUN2000-30KTL-M3 459 SUN2000MA V100R001C20
+SUN2000-30KTL-M3 462 SUN2000MA V100R001C20
+SUN2000-30KTL-NAM3 450 SUN2000MA V100R001C20
+SUN2000-30KTL-US 22 SUN2000 V200R001C02
+SUN2000-33KTL 19 SUN2000 V200R001C90
+SUN2000-33KTL-A 43 SUN2000 V200R002C00
+SUN2000-33KTL-E001 44 SUN2000 V200R001C90
+SUN2000-33KTL-JP 28 SUN2000 V200R002C00
+SUN2000-33KTL-NAM3 451 SUN2000MA V100R001C20
+SUN2000-33KTL-NH 468 SUN2000MA V100R001C20
+SUN2000-33KTL-NHM3 455 SUN2000MA V100R001C20
+SUN2000-33KTL-US 36 SUN2000 V200R002C20
+SUN2000-36KTL 27 SUN2000 V200R002C00
+SUN2000-36KTL-M3 445 SUN2000MA V100R001C20
+Solar Inverter Modbus Interface Definitions 1 Supported Models
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 4
+Model Model ID Earliest Firm Version
+SUN2000-36KTL-M3 460 SUN2000MA V100R001C20
+SUN2000-36KTL-NAM3 452 SUN2000MA V100R001C20
+SUN2000-36KTL-US 37 SUN2000 V200R002C20
+SUN2000-40KTL 20 SUN2000 V200R001C90
+SUN2000-40KTL-JP 29 SUN2000 V200R002C00
+SUN2000-40KTL-M3 446 SUN2000MA V100R001C20
+SUN2000-40KTL-M3 461 SUN2000MA V100R001C20
+SUN2000-40KTL-NAM3 453 SUN2000MA V100R001C20
+SUN2000-40KTL-NH 469 SUN2000MA V100R001C20
+SUN2000-40KTL-NHM3 456 SUN2000MA V100R001C20
+SUN2000-40KTL-US 35 SUN2000 V200R002C20
+SUN2000-42KTL 26 SUN2000 V200R002C00
+SUN2000-42KTL-M3 447 SUN2000MA V100R001C20
+SUN2000-43KTL-IN-C1 31 SUN2000 V200R002C00
+SUN2000-43KTL-INM3 454 SUN2000MA V100R001C20
+SUN2000-44KTL-M3 448 SUN2000MA V100R001C20
+SUN2000-45KTL-US-HV-D0 34 SUN2000HA V100R001
+SUN2000-50KTL 30 SUN2000 V200R002C00
+SUN2000-50KTL-C1 24 SUN2000 V200R002C00
+SUN2000-50KTL-JPM0 53 SUN2000 V300R001C00
+SUN2000-50KTL-JPM1 59 SUN2000 V300R001C00
+SUN2000-50KTL-M0 50 SUN2000 V300R001C00
+SUN2000-50KTL-M3 449 SUN2000MA V100R001C20
+SUN2000-55KTL-HV-D1 38 SUN2000HA V100R001
+SUN2000-55KTL-HV-D1-001 40 SUN2000HA V100R001
+SUN2000-55KTL-IN-HV-D1 39 SUN2000HA V100R001
+SUN2000-60KTL-HV-D1 33 SUN2000HA V100R001
+SUN2000-60KTL-HV-D1-001 41 SUN2000HA V100R001
+SUN2000-60KTL-M0 55 SUN2000 V300R001C00
+SUN2000-63KTL-JPH0 76 SUN2000HA V200R001C00
+Solar Inverter Modbus Interface Definitions 1 Supported Models
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 5
+Model Model ID Earliest Firm Version
+SUN2000-63KTL-JPM0 51 SUN2000 V300R001C00
+SUN2000-65KTL-M0 46 SUN2000 V300R001C00
+SUN2000-70KTL-C1 45 SUN2000 V300R001C00
+SUN2000-70KTL-INM0 48 SUN2000 V300R001C00
+SUN2000-75KTL-C1 56 SUN2000 V300R001C00
+SUN2000-90KTL-H0 75 SUN2000HA V200R001C00
+SUN2000-90KTL-H1 73 SUN2000HA V200R001C00
+SUN2000-90KTL-H2 81 SUN2000HA V200R001C00
+SUN2000-95KTL-INH0 74 SUN2000HA V200R001C00
+SUN2000-95KTL-INH1 82 SUN2000HA V200R001C00
+SUN2000-100KTL-H0 72 SUN2000HA V200R001C00
+SUN2000-100KTL-H1 71 SUN2000HA V200R001C00
+SUN2000-100KTL-H2 78 SUN2000HA V200R001C00
+SUN2000-100KTL-INM0 143 SUN2000 V500R001C00
+SUN2000-100KTL-M0 141 SUN2000 V500R001C00
+SUN2000-100KTL-M1 142 SUN2000 V500R001C00
+SUN2000-100KTL-USH0 70 SUN2000HA V200R001C00
+SUN2000-105KTL-H1 79 SUN2000HA V200R001C00
+SUN2000-110KTL-M0 144 SUN2000 V500R001C00
+SUN2000-111KTL-NHM0 146 SUN2000 V500R001C00
+SUN2000-125KTL-JPH0 110 SUN2000HA V300R001C00
+SUN2000-125KTL-M0 145 SUN2000 V500R001C00
+SUN2000-168KTL-H1 103 SUN2000HA V300R001C00
+SUN2000-175KTL-H0 101 SUN2000HA V300R001C00
+SUN2000-185KTL-H1 104 SUN2000HA V300R001C00
+SUN2000-185KTL-INH0 102 SUN2000HA V300R001C00
+SUN2000-193KTL-H0 105 SUN2000HA V300R001C00
+SUN2000-196KTL-H0 106 SUN2000HA V300R001C00
+SUN2000-196KTL-H1 107 SUN2000HA V300R001C00
+SUN2000-196KTL-H3 111 SUN2000HA V300R001C00
+Solar Inverter Modbus Interface Definitions 1 Supported Models
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 6
+Model Model ID Earliest Firm Version
+SUN2000-200KTL-H2 108 SUN2000HA V300R001C00
+SUN2000-215KTL-H0 109 SUN2000HA V300R001C00
+SUN2000L-2KTL 305 SUN2000L V100R001C00
+SUN2000L-3KTL 304 SUN2000L V100R001C00
+SUN2000L-3KTL-CN 310 SUN2000L V100R001C00
+SUN2000L-3KTL-CN-4G 311 SUN2000L V100R001C00
+SUN2000L-3.68KTL 303 SUN2000L V100R001C00
+SUN2000L-4KTL 302 SUN2000L V100R001C00
+SUN2000L-4KTL-CN 308 SUN2000L V100R001C00
+SUN2000L-4KTL-CN-4G 309 SUN2000L V100R001C00
+SUN2000L-4.125KTL-JP 331 SUN2000L V100R001C12
+SUN2000L-4.6KTL 301 SUN2000L V100R001C00
+SUN2000L-4.95KTL-JP 330 SUN2000L V100R001C12
+SUN2000L-5KTL 300 SUN2000L V100R001C00
+SUN2000L-5KTL-CN 306 SUN2000L V100R001C00
+SUN2000L-5KTL-CN-4G 307 SUN2000L V100R001C00
+SUN8000-500KTL 9 SUN8000 V100R001
+ 
+NO TE
+The maximum active power (Pmax), maximum reactive power (Qmax), and rated power (Pn)
+corresponding to each model can be obtained from the register interface. The model ID is
+the unique code of the model.
+Solar Inverter Modbus Interface Definitions 1 Supported Models
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 7
+2 Overview
+Modbus is a widely used protocol for device communications. This document
+describes the Modbus protocol used by Huawei solar inverters, and can be used to
+regulate follow-up third-party integrated development. Huawei solar inverters
+comply with the standard Modbus protocol, and this document focuses on the
+information specific to Huawei solar inverters. For other information about
+Modbus, see the standard documents about the Modbus protocol. For details
+about the standard protocols used by Huawei solar inverters and customized
+interaction modes and examples, see chapter 6 .
+2.1 Terms and Abbreviations
+Table 2-1 Terms and abbreviations
+Name Description
+Master node During master-slave communication, the party that initiates a
+communication request is referred to as the master node.
+Slave node During master-slave communication, the party that responds to
+a communication request is referred to as the slave node.
+Broadcast address Fixed to 0.
+Register address A register address is recorded in two bytes.
+U16 Unsigned integer (16 bits)
+U32 Unsigned integer (32 bits)
+I16 Signed integer (16 bits)
+I32 Signed integer (32 bits)
+STR Character string
+MLD Multiple bytes
+Bitfield16 16-bit data expressed by bit
+Solar Inverter Modbus Interface Definitions 2 Overview
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 8
+Name Description
+Bitfield32 32-bit data expressed by bit
+N/A Not applicable
+s Second
+Epoch seconds The number of seconds that have elapsed since 1970-01-01
+00:00:00
+RO Data that is readable only
+RW Data that is readable and writable
+WO Data that is writable only
+Solar Inverter Modbus Interface Definitions 2 Overview
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 9
+3 Register Definitions
+3.1 Inverter Equipment Register
+Table 3-1 Inverter Equipment Register definitions
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+1 Model RO STR N/A 1 30000 15 For details, see
+1.1 .
+2 SN RO STR N/A 1 30015 10 N/A
+3 PN RO STR N/A 1 30025 10 N/A
+4 Model ID RO U16 N/A 1 30070 1 For details, see
+1.1 .
+5 Number of
+PV strings
+RO U16 N/A 1 30071 1 N/A
+6 Number of
+MPP
+trackers
+RO U16 N/A 1 30072 1 N/A
+7 Rated power
+(Pn)
+RO U32 kW 1000 30073 2 N/A
+8 Maximum
+active power
+(Pmax)
+RO U32 kW 1000 30075 2 N/A
+9 Maximum
+apparent
+power
+(Smax)
+RO U32 kVA 1000 30077 2 N/A
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 10
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+10 Maximum
+reactive
+power
+(Qmax, fed to
+the power
+grid)
+RO I32 kVar 1000 30079 2 N/A
+11 Maximum
+reactive
+power
+(Qmax,
+absorbed
+from the
+power grid)
+RO I32 kVar 1000 30081 2 N/A
+12 State 1 RO Bitfield1
+6
+N/A 1 32000 1 Bit 0: standby
+Bit 1: grid-
+connected
+Bit 2: grid-
+connected
+normally
+Bit 3: grid
+connection with
+derating due to
+power rationing
+Bit 4: grid
+connection with
+derating due to
+internal causes
+of the solar
+inverter
+Bit 5: normal
+stop
+Bit 6: stop due
+to faults
+Bit 7: stop due
+to power
+rationing
+Bit 8: shutdown
+Bit 9: spot
+check
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 11
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+13 State 2 RO Bitfield1
+6
+N/A 1 32002 1 Bit 0: locking
+status (0:
+locked; 1:
+unlocked)
+Bit 1: PV
+connection
+status (0:
+disconnected; 1:
+connected)
+Bit 2: DSP data
+collection (0:
+no; 1: yes)
+14 State 3 RO Bitfield3
+2
+N/A 1 32003 2 Bit 0: off-grid
+(0: on-grid; 1:
+off-grid)
+Bit 1: off-grid
+switch (0:
+disable; 1:
+enable)
+15 Alarm 1 RO Bitfield1
+6
+N/A 1 32008 1 For details, see
+5.1 .
+16 Alarm 2 RO Bitfield1
+6
+N/A 1 32009 1 For details, see
+5.1 .
+17 Alarm 3 RO Bitfield1
+6
+N/A 1 32010 1 For details, see
+5.1 .
+18 PV1 voltage RO I16 V 10 32016 1 A maximum of
+24 PV strings
+are supported.
+The number of
+PV strings read
+by the host is
+defined by the
+Number of PV
+strings signal.
+The voltage
+and current
+register
+addresses for
+each PV string
+are as follows:
+PVn voltage:
+32014 + 2n
+PVn current:
+32015 + 2n
+19 PV1 current RO I16 A 100 32017 1
+20 PV2 voltage RO I16 V 10 32018 1
+21 PV2 current RO I16 A 100 32019 1
+22 PV3 voltage RO I16 V 10 32020 1
+23 PV3 current RO I16 A 100 32021 1
+24 PV4 voltage RO I16 V 10 32022 1
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 12
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+25 PV4 current RO I16 A 100 32023 1 n indicates the
+PV string
+number, which
+ranges from 1
+to 24.
+26 Input power RO I32 kW 1000 32064 2 N/A
+27 Power grid
+voltage/Line
+voltage
+between
+phases A
+and B
+RO U16 V 10 32066 1 When the
+output mode is
+L/N, L1/L2/N,
+or L1/L2,
+Power grid
+voltage is used.
+28 Line voltage
+between
+phases B
+and C
+RO U16 V 10 32067 1 When the
+output mode is
+L/N, L1/L2/N,
+or L1/L2, the
+information is
+invalid.
+29 Line voltage
+between
+phases C
+and A
+RO U16 V 10 32068 1 When the
+output mode is
+L/N, L1/L2/N,
+or L1/L2, the
+information is
+invalid.
+30 Phase A
+voltage
+RO U16 V 10 32069 1 When the
+output mode is
+L/N, L1/L2/N,
+or L1/L2, the
+information is
+invalid.
+31 Phase B
+voltage
+RO U16 V 10 32070 1 When the
+output mode is
+L/N, L1/L2/N,
+or L1/L2, the
+information is
+invalid.
+32 Phase C
+voltage
+RO U16 V 10 32071 1 When the
+output mode is
+L/N, L1/L2/N,
+or L1/L2, the
+information is
+invalid.
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 13
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+33 Power grid
+current/
+Phase A
+current
+RO I32 A 1000 32072 2 When the
+output mode is
+L/N, L1/L2/N,
+or L1/L2,
+Power grid
+current is used.
+34 Phase B
+current
+RO I32 A 1000 32074 2 When the
+output mode is
+L/N, L1/L2/N,
+or L1/L2, the
+information is
+invalid.
+35 Phase C
+current
+RO I32 A 1000 32076 2 When the
+output mode is
+L/N, L1/L2/N,
+or L1/L2, the
+information is
+invalid.
+36 Peak active
+power of
+current day
+RO I32 kW 1000 32078 2 N/A
+37 Active power RO I32 kW 1000 32080 2 N/A
+38 Reactive
+power
+RO I32 kVar 1000 32082 2 N/A
+39 Power factor RO I16 N/A 1000 32084 1 N/A
+40 Grid
+frequency
+RO U16 Hz 100 32085 1 N/A
+41 Efficiency RO U16 % 100 32086 1 N/A
+42 Internal
+temperature
+RO I16 °C 10 32087 1 N/A
+43 Insulation
+resistance
+RO U16 MΩ 1000 32088 1 N/A
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 14
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+44 Device
+status
+RO U16 N/A 1 32089 1 0x0000
+Standby:
+initializing
+0x0001
+Standby:
+detecting
+insulation
+resistance
+0x0002
+Standby:
+detecting
+irradiation
+0x0003
+Standby: drid
+detecting
+0x0100 Starting
+0x0200 On-grid
+(Off-grid mode:
+running)
+0x0201 Grid
+connection:
+power limited
+(Off-grid mode:
+running: power
+limited)
+0x0202 Grid
+connection:
+self-derating
+(Off-grid mode:
+running: self-
+derating)
+0x0203 Off-grid
+Running
+0x0300
+Shutdown: fault
+0x0301
+Shutdown:
+command
+0x0302
+Shutdown:
+OVGR
+0x0303
+Shutdown:
+communication
+disconnected
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 15
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+0x0304
+Shutdown:
+power limited
+0x0305
+Shutdown:
+manual startup
+required
+0x0306
+Shutdown: DC
+switches
+disconnected
+0x0307
+Shutdown:
+rapid cutoff
+0x0308
+Shutdown:
+input
+underpower
+0x0401 Grid
+scheduling:
+cosφ-P curve
+0x0402 Grid
+scheduling: Q-U
+curve
+0x0403 Grid
+scheduling: PF-
+U curve
+0x0404 Grid
+scheduling: dry
+contact
+0x0405 Grid
+scheduling: Q-P
+curve
+0x0500 Spot-
+check ready
+0x0501 Spot-
+checking
+0x0600
+Inspecting
+0X0700 AFCI
+self check
+0X0800 I-V
+scanning
+0X0900 DC
+input detection
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 16
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+0X0A00
+Running: off-
+grid charging
+0xA000
+Standby: no
+irradiation
+45 Fault code RO U16 N/A 1 32090 1 N/A
+46 Startup time RO U32 N/A 1 32091 2 Epoch seconds,
+local time
+47 Shutdown
+time
+RO U32 N/A 1 32093 2 Epoch seconds,
+local time
+48 Accumulate
+d energy
+yield
+RO U32 kWh 100 32106 2 N/A
+49 Daily energy
+yield
+RO U32 kWh 100 32114 2 N/A
+50 [Active]
+Adjustment
+mode
+RO U16 N/A 1 35300 1 0: percentage
+1: fixed value
+NOTICE
+Addresses
+35300 to 35303
+need to be read
+at a time.
+51 [Active]
+Adjustment
+value
+RO U32 N/A * 35302 2 Percentage:
+0.1%
+Fixed value:
+0.001 kW
+Note: For
+details about
+the adjustment
+value precision,
+see the
+corresponding
+adjustment
+command
+precision.
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 17
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+52 [Active]
+Adjustment
+command
+RO U16 N/A 1 35303 1 40125: active
+power derating
+by percentage
+(0.1%)
+40120: active
+power derating
+by fixed value
+40126: active
+power derating
+by fixed value
+(W)
+42178:
+maximum
+active power
+53 [Reactive]
+Adjustment
+mode
+RO U16 N/A 1 35304 1 0: power factor
+1: absolute
+value
+2: Q/S
+3: Q-U
+characteristic
+curve
+(command ID:
+0)
+4: cosφ-P/Pn
+characteristic
+curve
+(command ID:
+0)
+5: PF-U
+characteristic
+curve
+(command ID:
+0)
+6: Q-P
+characteristic
+curve
+(command ID:
+0)
+NOTICE
+Addresses
+35304 to 35306
+need to be read
+at a time.
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 18
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+54 [Reactive]
+Adjustment
+value
+RO U32 N/A * 35305 2 Power factor:
+0.001
+Absolute value:
+0.001 kVar
+Q/S: 0.001
+Q-U
+characteristic
+curve: 0
+cosφ-P/Pn
+characteristic
+curve: 0
+PF-U
+characteristic
+curve: 0
+Q-P
+characteristic
+curve: 0
+55 [Reactive]
+Adjustment
+command
+RO U16 N/A 1 35307 1 40122: power
+factor
+40123: Q/S
+adjustment
+40129: reactive
+power
+compensation
+at night (kVar)
+42809: reactive
+power at night
+Q/S
+56 [Power
+meter
+collection]
+Active
+power*
+RO I32 W 1 37113 2 > 0: feeding
+power to the
+power grid
+< 0: obtaining
+power from the
+power grid
+57 [Optimizer]
+Total
+number of
+optimizers*
+RO U16 N/A 1 37200 1 N/A
+58 [Optimizer]
+Number of
+online
+optimizers*
+RO U16 N/A 1 37201 1 N/A
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 19
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+59 [Optimizer]
+Feature
+data*
+RO U16 N/A 1 37202 1 N/A
+60 System time RW U32 N/A 1 40000 2 [946684800,
+3155759999]
+Epoch seconds,
+local time
+61 [Power grid
+scheduling]
+Q-U
+characteristi
+c curve
+mode*
+RW U16 N/A 1 40037 1 0: non-
+hysteresis
+1: hysteresis
+62 [Power grid
+scheduling]
+Q-U
+dispatch
+trigger
+power (%)*
+RW U16 % 1 40038 1 [0, 100]
+63 [Power grid
+scheduling]
+Fixed active
+power
+derated
+RW U16 kW 10 40120 1 Scope: [0, Pmax]
+64 [Power grid
+scheduling]
+Reactive
+power
+compensatio
+n (PF)
+RW I16 N/A 1000 40122 1 (–1, –0.8]U[0.8,
+1]
+65 [Power grid
+scheduling]
+Reactive
+power
+compensatio
+n (Q/S)
+RW I16 N/A 1000 40123 1 [–1, 1]
+The device
+converts the
+value to a fixed
+value of Q for
+reactive power
+control. S
+indicates Smax.
+66 [Power grid
+scheduling]
+Active power
+percentage
+derating
+(0.1%)
+RW U16 % 10 40125 1 Scope: [0, 100]
+Interface for
+fine adjustment
+of active power
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 20
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+67 [Power grid
+scheduling]
+Fixed active
+power
+derated (W)
+RW U32 W 1 40126 2 Scope: [0, Pmax]
+68 [Power grid
+scheduling]
+Reactive
+power
+compensatio
+n at night
+(kVar)
+RW I32 kVar 1000 40129 2 [–Qmax, Qmax]
+69 [Power grid
+scheduling]
+cosφ-P/Pn
+characteristi
+c curve
+RW MLD N/A 1 40133 21 For details, see
+5.2 .
+70 [Power grid
+scheduling]
+Q-U
+characteristi
+c curve
+RW MLD N/A 1 40154 21 For details, see
+5.2 .
+71 [Power grid
+scheduling]
+PF-U
+characteristi
+c curve
+RW MLD N/A 1 40175 21 For details, see
+5.2 .
+72 [Power grid
+scheduling]
+Reactive
+power
+adjustment
+time
+RW U16 s 1 40196 1 [1, 120]. The
+default value is
+10.
+73 [Power grid
+scheduling]
+Q-U power
+percentage
+to exit
+scheduling*
+RW U16 % 1 40198 1 [0, 100]
+74 Startup WO U16 N/A 1 40200 1 N/A
+75 Shutdown WO U16 N/A 1 40201 1 N/A
+76 Grid code RW U16 NA 1 42000 1 For details, see
+5.3 .
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 21
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+77 [Power grid
+scheduling]
+Reactive
+power
+change
+gradient
+RW U32 %/s 1000 42015 2 [0.1, 1000]
+78 [Power grid
+scheduling]
+Active power
+change
+gradient
+RW U32 %/s 1000 42017 2 [0.1, 1000]
+79 [Power grid
+scheduling]
+Schedule
+instruction
+valid
+duration
+RW U32 s 1 42019 2 [0, 86400]
+The value 0
+indicates that
+the command
+is valid
+permanently.
+80 Failsafe
+Active Power
+Limit [kW]
+[High
+Accuracy]
+RW I32 kW 1000 42405 2 [0.000,Pmax]
+81 Time zone RW I16 min 1 43006 1 [–720, 840]
+82 Fast power
+scheduling
+RW U16 N/A N/A 45086 1 0: Disable
+1: Enable
+ 
+NO TICE
+Signals marked with * are supported only by certain models or standard codes.
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 22
+3.2 Battery Equipment Registe
+Table 3-2 Battery Equipment Registe definitions
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+1 [Energ
+y
+storag
+e unit
+1] [1]
+Runni
+ng
+status
+RO UIN
+T16
+N/
+A
+1 37000 1 0:
+offlin
+e
+1:
+stand
+by
+2:
+runni
+ng
+3:
+fault
+4:
+sleep
+mode
+√ （√）[2]
+2 [Energ
+y
+storag
+e unit
+1]
+Charg
+e and
+discha
+rge
+power
+RO INT3
+2
+W 1 37001 2 > 0:
+chargi
+ng
+< 0:
+disch
+argin
+g
+√ （√）
+3 [Energ
+y
+storag
+e unit
+1] Bus
+voltag
+e
+RO UIN
+T16
+V 10 37003 1 Energ
+y
+stora
+ge
+modu
+le
+outpu
+t
+volta
+ge
+√ （√）
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 23
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+4 [Energ
+y
+storag
+e unit
+1]
+Batter
+y SOC
+RO UIN
+T16
+% 10 37004 1 Batter
+y's
+state
+of
+capac
+ity
+√ （√）
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 24
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+5 [Energ
+y
+storag
+e unit
+1]
+Worki
+ng
+mode
+RO UIN
+T16
+N/
+A
+1 37006 1 0:non
+e
+1:Forc
+ible
+charg
+e/
+disch
+arge
+2:Tim
+e of
+Use(L
+G)
+3:Fixe
+d
+charg
+e/
+disch
+arge
+4:Max
+imise
+self
+consu
+mptio
+n
+5:Full
+y fed
+to
+grid
+6:Tim
+e of
+Use(L
+UNA2
+000)
+7:
+remot
+e
+sched
+uling-
+maxi
+mum
+self-
+use
+8:
+remot
+e
+sched
+√ √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 25
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+uling
+- full
+Intern
+et
+acces
+s
+9:
+remot
+e
+sched
+uling
+- TOU
+10: AI
+energ
+y
+mana
+geme
+nt
+and
+sched
+uling
+6 [Energ
+y
+storag
+e unit
+1]
+Rated
+charg
+e
+power
+RO UIN
+T32
+W 1 37007 2 - √ √
+7 [Energ
+y
+storag
+e unit
+1]
+Rated
+discha
+rge
+power
+RO UIN
+T32
+W 1 37009 2 - √ √
+8 [Energ
+y
+storag
+e unit
+1]
+Fault
+ID
+RO UIN
+T16
+N/
+A
+1 37014 1 - √ √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 26
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+9 [Energ
+y
+storag
+e unit
+1]
+Curre
+nt-day
+charg
+e
+capaci
+ty
+RO UIN
+T32
+kW
+h
+100 37015 2 - √ （√）
+10 [Energ
+y
+storag
+e unit
+1]
+Curre
+nt-day
+discha
+rge
+capaci
+ty
+RO UIN
+T32
+kW
+h
+100 37017 2 - √ （√）
+11 [Energ
+y
+storag
+e unit
+1] Bus
+curren
+t
+RO INT1
+6
+A 10 37021 1 Energ
+y
+stora
+ge
+modu
+le
+outpu
+t
+curre
+nt
+√ √
+12 [Energ
+y
+storag
+e unit
+1]
+batter
+y
+tempe
+rature
+RO INT1
+6
+℃ 10 37022 1 - √ √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 27
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+13 [Energ
+y
+storag
+e unit
+1]
+Remai
+ning
+charg
+e/
+discha
+rge
+time
+RO UIN
+T16
+min
+s
+1 37025 1 [0,14
+40]
+√ √
+14 [Energ
+y
+storag
+e unit
+1]
+DCDC
+versio
+n
+RO STRI
+NG
+N/
+A
+1 37026 10 eg.
+7kW-
+V1.3
+√
+15 [Energ
+y
+storag
+e unit
+1]
+BMSv
+ersion
+RO STRI
+NG
+N/
+A
+1 37036 10 eg.
+001.
+002.
+003.
+004
+√
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 28
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+16 [Energ
+y
+storag
+e]Max
+imum
+charg
+e
+power
+RO UIN
+T32
+W 1 37046 2 The
+value
+is the
+small
+er
+value
+of the
+sum
+of the
+maxi
+mum
+charg
+e and
+disch
+arge
+capab
+ility
+of the
+solar
+invert
+er
+and
+the
+charg
+e and
+disch
+arge
+capab
+ility
+of the
+conne
+cted
+energ
+y
+stora
+ge
+unit
+(ESU)
+.
+√ √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 29
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+17 [Energ
+y
+storag
+e]
+Maxi
+mum
+discha
+rge
+power
+RO UIN
+T32
+W 1 37048 2 The
+value
+is the
+small
+er
+value
+of the
+sum
+of the
+maxi
+mum
+charg
+e and
+disch
+arge
+capab
+ility
+of the
+solar
+invert
+er
+and
+the
+charg
+e and
+disch
+arge
+capab
+ility
+of the
+conne
+cted
+ESU.
+√ √
+18 [Energ
+y
+storag
+e unit
+1] SN
+RO STRI
+NG
+N/
+A
+1 37052 10 - √ √
+19 [Energ
+y
+storag
+e unit
+1]
+Total
+charg
+e
+RO UIN
+T32
+kW
+h
+100 37066 2 - √ √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 30
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+20 [Energ
+y
+storag
+e unit
+1]
+Total
+discha
+rge
+RO UIN
+T32
+kW
+h
+100 37068 2 - √ √
+21 [Energ
+y
+storag
+e unit
+2] SN
+RO BYTE
+S
+N/
+A
+1 37700 10 - √
+22 [Energ
+y
+storag
+e unit
+2]
+Batter
+y SOC
+RO UIN
+T16
+% 10 37738 1 Batter
+y's
+state
+of
+capac
+ity
+√
+23 [Energ
+y
+storag
+e unit
+2]
+Runni
+ng
+status
+RO UIN
+T16
+N/
+A
+1 37741 1 0:
+offlin
+e
+1:
+stand
+by
+2:
+runni
+ng
+3:
+fault
+4:
+sleep
+mode
+√
+24 [Energ
+y
+storag
+e unit
+2]
+Charg
+e and
+discha
+rge
+power
+RO INT3
+2
+W 1 37743 2 > 0:
+chargi
+ng
+< 0:
+disch
+argin
+g
+√
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 31
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+25 [Energ
+y
+storag
+e unit
+2]
+Curre
+nt-day
+charg
+e
+capaci
+ty
+RO UIN
+T32
+kW
+h
+100 37746 2 - √
+26 [Energ
+y
+storag
+e unit
+2]
+Curre
+nt-day
+discha
+rge
+capaci
+ty
+RO UIN
+T32
+kW
+h
+100 37748 2 - √
+27 [Energ
+y
+storag
+e unit
+2] Bus
+voltag
+e
+RO UIN
+T16
+V 10 37750 1 - √
+28 [Energ
+y
+storag
+e unit
+2] Bus
+curren
+t
+RO INT1
+6
+A 10 37751 1 - √
+29 [Energ
+y
+storag
+e unit
+2]
+Batter
+y
+tempe
+rature
+RO INT1
+6
+℃ 10 37752 1 √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 32
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+30 [Energ
+y
+storag
+e unit
+2]
+Total
+charg
+e
+RO UIN
+T32
+kW
+h
+100 37753 2 - √
+31 [Energ
+y
+storag
+e unit
+2]
+Total
+discha
+rge
+RO UIN
+T32
+kW
+h
+100 37755 2 - √
+32 [Energ
+y
+storag
+e]Rate
+d
+capaci
+ty
+RO UIN
+T32
+Wh 1 37758 2 √
+33 [Energ
+y
+storag
+e]SOC
+RO UIN
+T16
+% 10 37760 1 [0.0,1
+00.0]
+√
+34 [Energ
+y
+storag
+e]Run
+ning
+status
+RO UIN
+T16
+N/
+A
+1 37762 1 0:
+offlin
+e
+1:
+stand
+by
+2:
+runni
+ng
+3:
+fault
+4:
+sleep
+mode
+√
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 33
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+35 [Energ
+y
+storag
+e]Bus
+voltag
+e
+RO UIN
+T16
+V 10 37763 1 - √
+36 [Energ
+y
+storag
+e]Bus
+curren
+t
+RO INT1
+6
+A 10 37764 1 - √
+37 [Energ
+y
+storag
+e]Cha
+rge/
+Disch
+arge
+power
+RO INT3
+2
+W 1 37765 2 - √
+38 [Energ
+y
+storag
+e]Tota
+l
+charg
+e
+RO UIN
+T32
+kW
+h
+100 37780 2 Life-
+cycle
+accu
+mulat
+ion
+√ √
+39 [Energ
+y
+storag
+e]Tota
+l
+discha
+rge
+RO UIN
+T32
+kW
+h
+100 37782 2 Life-
+cycle
+accu
+mulat
+ion
+√ √
+40 [Energ
+y
+storag
+e]
+Curre
+nt-day
+charg
+e
+capaci
+ty
+RO UIN
+T32
+kW
+h
+100 37784 2 Curre
+nt-
+day
+accu
+mulat
+ion
+√ √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 34
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+41 [Energ
+y
+storag
+e]
+Curre
+nt-day
+discha
+rge
+capaci
+ty
+RO UIN
+T32
+kW
+h
+100 37786 2 Curre
+nt-
+day
+accu
+mulat
+ion
+√ √
+42 [Energ
+y
+storag
+e unit
+2]
+softw
+are
+versio
+n
+RO STRI
+NG
+N/
+A
+1 37799 15 - √
+43 [Energ
+y
+storag
+e unit
+1]
+softw
+are
+versio
+n
+RO STRI
+NG
+N/
+A
+1 37814 15 - √
+44 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]SOH
+Calibr
+ation
+Status
+RO UIN
+T16
+N/
+A
+N/
+A
+37920 1
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 35
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+45 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]SOH
+Calibr
+ation
+Status
+RO UIN
+T16
+N/
+A
+N/
+A
+37921 1
+46 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]SOH
+Calibr
+ation
+Status
+RO UIN
+T16
+N/
+A
+N/
+A
+37922 1
+47 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]SOH
+Calibr
+ation
+Status
+RO UIN
+T16
+N/
+A
+N/
+A
+37923 1
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 36
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+48 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]SOH
+Calibr
+ation
+Status
+RO UIN
+T16
+N/
+A
+N/
+A
+37924 1
+49 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]SOH
+Calibr
+ation
+Status
+RO UIN
+T16
+N/
+A
+N/
+A
+37925 1
+50 SOH
+Calibr
+ation
+Status
+RO UIN
+T16
+N/
+A
+1 37926 1
+51 SOH
+Calibr
+ation
+Releas
+e the
+lower
+discha
+rge
+limit
+of the
+SOC
+RO UIN
+T16
+N/
+A
+10 37927 1
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 37
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+52 SOH
+Calibr
+ation
+Enabl
+e the
+backu
+p
+power
+SOC.
+RO UIN
+T16
+N/
+A
+10 37928 1
+53 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]SN
+RO STRI
+NG
+N/
+A
+N/
+A
+38200 10 - √
+54 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]Firm
+ware
+versio
+n
+RO STRI
+NG
+N/
+A
+N/
+A
+38210 15 - √
+55 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]Work
+ing
+status
+RO UIN
+T16
+N/
+A
+N/
+A
+38228 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 38
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+56 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]SOC
+RO UIN
+T16
+% 10 38229 1 - √
+57 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]Char
+ge/
+Disch
+arge
+power
+RO INT3
+2
+kW 100
+0
+38233 2 - √
+58 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]Volta
+ge
+RO UIN
+T16
+V 10 38235 1 - √
+59 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]Curre
+nt
+RO INT1
+6
+A 10 38236 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 39
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+60 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]Total
+charg
+e
+RO UIN
+T32
+kW
+h
+100 38238 2 - √
+61 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]Total
+discha
+rge
+RO UIN
+T32
+kW
+h
+100 38240 2 - √
+62 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]SN
+RO STRI
+NG
+N/
+A
+N/
+A
+38242 10 - √
+63 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]Firm
+ware
+versio
+n
+RO STRI
+NG
+N/
+A
+N/
+A
+38252 15 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 40
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+64 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]Work
+ing
+status
+RO UIN
+T16
+N/
+A
+N/
+A
+38270 1 - √
+65 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]SOC
+RO UIN
+T16
+% 10 38271 1 - √
+66 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]Char
+ge/
+Disch
+arge
+power
+RO INT3
+2
+kW 100
+0
+38275 2 - √
+67 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]Volta
+ge
+RO UIN
+T16
+V 10 38277 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 41
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+68 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]Curre
+nt
+RO INT1
+6
+A 10 38278 1 - √
+69 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]Total
+charg
+e
+RO UIN
+T32
+kW
+h
+100 38280 2 - √
+70 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]Total
+discha
+rge
+RO UIN
+T32
+kW
+h
+100 38282 2 - √
+71 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]SN
+RO STRI
+NG
+N/
+A
+N/
+A
+38284 10 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 42
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+72 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]Firm
+ware
+versio
+n
+RO STRI
+NG
+N/
+A
+N/
+A
+38294 15 - √
+73 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]Work
+ing
+status
+RO UIN
+T16
+N/
+A
+N/
+A
+38312 1 - √
+74 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]SOC
+RO UIN
+T16
+% 10 38313 1 - √
+75 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]Char
+ge/
+Disch
+arge
+power
+RO INT3
+2
+kW 100
+0
+38317 2 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 43
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+76 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]Volta
+ge
+RO UIN
+T16
+V 10 38319 1 - √
+77 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]Curre
+nt
+RO INT1
+6
+A 10 38320 1 - √
+78 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]Total
+charg
+e
+RO UIN
+T32
+kW
+h
+100 38322 2 - √
+79 [Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]Total
+discha
+rge
+RO UIN
+T32
+kW
+h
+100 38324 2 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 44
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+80 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]SN
+RO STRI
+NG
+N/
+A
+N/
+A
+38326 10 - √
+81 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]Firm
+ware
+versio
+n
+RO STRI
+NG
+N/
+A
+N/
+A
+38336 15 - √
+82 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]Work
+ing
+status
+RO UIN
+T16
+N/
+A
+N/
+A
+38354 1 - √
+83 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]SOC
+RO UIN
+T16
+% 10 38355 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 45
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+84 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]Char
+ge/
+Disch
+arge
+power
+RO INT3
+2
+kW 100
+0
+38359 2 - √
+85 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]Volta
+ge
+RO UIN
+T16
+V 10 38361 1 - √
+86 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]Curre
+nt
+RO INT1
+6
+A 10 38362 1 - √
+87 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]Total
+charg
+e
+RO UIN
+T32
+kW
+h
+100 38364 2 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 46
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+88 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]Total
+discha
+rge
+RO UIN
+T32
+kW
+h
+100 38366 2 - √
+89 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]SN
+RO STRI
+NG
+N/
+A
+N/
+A
+38368 10 - √
+90 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]Firm
+ware
+versio
+n
+RO STRI
+NG
+N/
+A
+N/
+A
+38378 15 - √
+91 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]Work
+ing
+status
+RO UIN
+T16
+N/
+A
+N/
+A
+38396 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 47
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+92 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]SOC
+RO UIN
+T16
+% 10 38397 1 - √
+93 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]Char
+ge/
+Disch
+arge
+power
+RO INT3
+2
+kW 100
+0
+38401 2 - √
+94 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]Volta
+ge
+RO UIN
+T16
+V 10 38403 1 - √
+95 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]Curre
+nt
+RO INT1
+6
+A 10 38404 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 48
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+96 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]Total
+charg
+e
+RO UIN
+T32
+kW
+h
+100 38406 2 - √
+97 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]Total
+discha
+rge
+RO UIN
+T32
+kW
+h
+100 38408 2 - √
+98 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]SN
+RO STRI
+NG
+N/
+A
+N/
+A
+38410 10 - √
+99 [Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]Firm
+ware
+versio
+n
+RO STRI
+NG
+N/
+A
+N/
+A
+38420 15 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 49
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+10
+0
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]Work
+ing
+status
+RO UIN
+T16
+N/
+A
+N/
+A
+38438 1 - √
+10
+1
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]SOC
+RO UIN
+T16
+% 10 38439 1 - √
+10
+2
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]Char
+ge/
+Disch
+arge
+power
+RO INT3
+2
+kW 100
+0
+38443 2 - √
+10
+3
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]Volta
+ge
+RO UIN
+T16
+V 10 38445 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 50
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+10
+4
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]Curre
+nt
+RO INT1
+6
+A 10 38446 1 - √
+10
+5
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]Total
+charg
+e
+RO UIN
+T32
+kW
+h
+100 38448 2 - √
+10
+6
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]Total
+discha
+rge
+RO UIN
+T32
+kW
+h
+100 38450 2 - √
+10
+7
+[Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]Maxi
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38452 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 51
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+10
+8
+[Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]Mini
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38453 1 - √
+10
+9
+[Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]Maxi
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38454 1 - √
+11
+0
+[Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]Mini
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38455 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 52
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+11
+1
+[Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]Maxi
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38456 1 - √
+11
+2
+[Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]Mini
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38457 1 - √
+11
+3
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]Maxi
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38458 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 53
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+11
+4
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]Mini
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38459 1 - √
+11
+5
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]Maxi
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38460 1 - √
+11
+6
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]Mini
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38461 1 - √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 54
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+11
+7
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]Maxi
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38462 1 - √
+11
+8
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]Mini
+mum
+tempe
+rature
+RO INT1
+6
+℃ 10 38463 1 - √
+11
+9
+[Energ
+y
+storag
+e unit
+1]
+Produ
+ct
+mode
+RW UIN
+T16
+N/
+A
+1 47000 1 0：
+None
+1: LG-
+RESU
+2：
+HUA
+WEI-
+LUNA
+2000
+√ √
+12
+0
+[Energ
+y
+storag
+e]
+Time-
+of-use
+electri
+city
+price
+period
+s
+RW MUL
+TIDA
+TA
+N/
+A
+1 47028 41 For
+detail
+s,
+see5.
+4
+√
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 55
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+12
+1
+[Energ
+y
+storag
+e]Max
+imum
+chargi
+ng
+power
+RW UIN
+T32
+W 1 47075 2 [0,
+Upper
+thres
+hold]
+Defau
+lt
+value:
+3500;
+√ √
+12
+2
+[Energ
+y
+storag
+e]Max
+imum
+discha
+rging
+power
+RW UIN
+T32
+W 1 47077 2 [0,
+Upper
+thres
+hold]
+Defau
+lt
+value:
+3500;
+√ √
+12
+3
+[Energ
+y
+storag
+e]Cha
+rging
+cutoff
+capaci
+ty
+RW UIN
+T16
+% 10 47081 1 [90,1
+00]
+Defau
+lt
+value:
+100
+√ （√）
+12
+4
+[Energ
+y
+storag
+e]
+Disch
+arge
+cutoff
+capaci
+ty
+RW UIN
+T16
+% 10 47082 1 [12,2
+0]
+Defau
+lt
+value:
+15
+√ （√）
+12
+5
+[Energ
+y
+storag
+e]Forc
+ed
+chargi
+ng
+and
+discha
+rging
+period
+RW UIN
+T16
+min
+s
+1 47083 1 [0,14
+40]
+The
+value
+is not
+store
+d.
+√ （√）
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 56
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+12
+6
+[Energ
+y
+storag
+e]Forc
+ed
+chargi
+ng
+and
+discha
+rging
+power
+RW INT3
+2
+W 1 47084 2 [-
+"Maxi
+mum
+disch
+arge
+powe
+r",
+"Maxi
+mum
+charg
+e
+powe
+r"]
+Force
+d
+charg
+e/
+disch
+arge
+powe
+r ≤
+Maxi
+mum
+charg
+e/
+disch
+arge
+powe
+r ≤
+Rated
+charg
+e/
+disch
+arge
+powe
+r
+Do
+not
+store
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 57
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+12
+7
+[Energ
+y
+storag
+e]Wor
+king
+mode
+settin
+gs
+RW UIN
+T16
+N/
+A
+1 47086 1 0:Ada
+ptive(
+Fixed
+charg
+e/
+disch
+arge/
+Maxi
+mise
+self
+consu
+mptio
+n)；
+1:Fixe
+d
+charg
+e/
+disch
+arge；
+2:Max
+imise
+self
+consu
+mptio
+n;
+3:Tim
+e Of
+Use(L
+G)；
+4:Full
+y fed
+to
+grid；
+5:Tim
+e Of
+Use(L
+una)
+√ （√）
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 58
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+12
+8
+[Energ
+y
+storag
+e]
+Charg
+e
+from
+grid
+Functi
+on
+RW UIN
+T16
+N/
+A
+1 47087 1 0:
+Disab
+le
+1:
+Enabl
+e
+√ （√）
+12
+9
+[Energ
+y
+storag
+e]
+Grid
+charg
+e
+cutoff
+SOC
+RW UIN
+T16
+% 10 47088 1 [20,1
+00]
+Defau
+lt: 50
+√ （√）
+13
+0
+[Energ
+y
+storag
+e unit
+2]
+Produ
+ct
+model
+RW UIN
+T16
+N/
+A
+1 47089 1 0:
+none
+1: LG-
+RESU
+2:
+HUA
+WEI-
+LUNA
+2000
+√
+13
+1
+[Energ
+y
+storag
+e]
+Forcibl
+e
+charg
+e/
+discha
+rge
+RW UIN
+T16
+N/
+A
+1 47100 1 0:
+Stop
+1:
+Charg
+e
+2:
+Disch
+arge
+√ √
+13
+2
+[Energ
+y
+storag
+e]
+Target
+SOC
+RW UIN
+T16
+% 10 47101 1 [0,10
+0]
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 59
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+13
+3
+[Energ
+y
+storag
+e]
+Backu
+p
+power
+SOC
+RW UIN
+T16
+% 10 47102 1 Defini
+tion:
+Resev
+ed
+energ
+y
+stora
+ge
+capac
+ity in
+backu
+p
+mode
+Settin
+g
+range
+:
+[0,10
+0]
+Execu
+tion
+range
+:
+LG:
+[12,1
+00],
+Defau
+lt
+value:
+15
+Luna:
+[0,10
+0],
+Defau
+lt
+value:
+0
+√ √
+13
+4
+[Energ
+y
+storag
+e]
+Produ
+ct
+model
+RW UIN
+T16
+N/
+A
+1 47106 1 0:non
+e
+1:LG-
+RESU
+2:HU
+AWEI
+-
+LUNA
+2000
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 60
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+13
+5
+[Energ
+y
+storag
+e unit
+1] No.
+RW UIN
+T16
+N/
+A
+1 47107 1 [0,65
+534]
+Defau
+lt: 0.
+Whic
+h
+mean
+s no
+equip
+ment.
+√
+13
+6
+[Energ
+y
+storag
+e unit
+2] No.
+RW UIN
+T16
+N/
+A
+1 47108 1 [0,65
+534]
+Defau
+lt: 0.
+Whic
+h
+mean
+s no
+equip
+ment.
+√
+13
+7
+[Energ
+y
+storag
+e]
+Fixed
+chargi
+ng
+and
+discha
+rging
+period
+s
+RW MUL
+TIDA
+TA
+N/
+A
+1 47200 41 For
+detail
+s,
+see5.
+4
+√
+13
+8
+[Energ
+y
+storag
+e]
+Power
+of
+charg
+e
+from
+grid
+RW UIN
+T32
+kW 100
+0
+47242 2 [0，
+maxi
+mum
+powe
+r of
+charg
+e
+from
+grid]
+√ √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 61
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+13
+9
+[Energ
+y
+storag
+e]Max
+imum
+power
+of
+charg
+e
+from
+grid
+RW UIN
+T32
+kW 100
+0
+47244 2 Defau
+lt:
+2000
+√ √
+14
+0
+[Energ
+y
+storag
+e]Forc
+ible
+charg
+e/
+discha
+rge
+settin
+g
+mode
+RW UIN
+T16
+N/
+A
+1 47246 1 0：
+Durat
+ion
+√ √
+14
+1
+[Energ
+y
+storag
+e]
+Forcibl
+e
+charg
+e
+power
+RW UIN
+T32
+kW 100
+0
+47247 2 [0,ma
+ximu
+m
+charg
+e
+powe
+r]
+√ √
+14
+2
+[Energ
+y
+storag
+e]
+Forcibl
+e
+discha
+rge
+power
+RW UIN
+T32
+kW 100
+0
+47249 2 [0,ma
+ximu
+m
+disch
+arge
+powe
+r]
+√ √
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 62
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+14
+3
+[Energ
+y
+storag
+e]Tim
+e of
+Use
+chargi
+ng
+and
+discha
+rging
+period
+s
+RW Byte
+s
+N/
+A
+1 47255 43 For
+detail
+s,
+see5.
+4
+√
+14
+4
+[Energ
+y
+storag
+e]
+Excess
+PV
+energ
+y use
+in
+TOU
+RW UIN
+T16
+N/
+A
+1 47299 1 0: Fed
+to
+grid
+1:
+Charg
+e
+Note:
+Boun
+d
+with
+the
+grid
+code.
+Japan
+: Fed
+to
+grid
+Other
+count
+ries:
+Charg
+e
+√
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 63
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+14
+5
+Active
+power
+contro
+l
+mode
+RW UIN
+T16
+N/
+A
+1 47415 1 0:
+Unlim
+ited
+(defa
+ult)
+1: DI
+active
+sched
+uling
+5:
+Zero
+powe
+r grid
+conne
+ction
+6:
+Powe
+r-
+limite
+d grid
+conne
+ction
+(kW)
+7:
+Powe
+r-
+limite
+d grid
+conne
+ction
+(%)
+14
+6
+Maxi
+mum
+Feed
+Grid
+Power
+(kW)
+RW INT3
+2
+Kw 100
+0
+47416 2 [-100
+0,Plan
+t
+Capac
+ity]
+defau
+lt:0
+14
+7
+Maxi
+mum
+Feed
+Grid
+Power
+(%)
+RW INT1
+6
+% 10 47418 1 [0,10
+0]
+defau
+lt:0
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 64
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+14
+8
+[Dong
+le]
+[Plant
+]maxi
+mum
+charg
+e-
+from-
+grid
+power
+RW UIN
+T32
+Kw 100
+0
+47590 2 [0,30] √ √
+14
+9
+[Back
+up]Sw
+itch to
+off-
+grid
+RW UIN
+T16
+N/
+A
+1 47604 1 0：
+Switc
+h
+from
+grid-
+tied
+to
+off-
+grid
+√ √
+15
+0
+[Back
+up]
+Voltag
+e in
+indep
+enden
+t
+operat
+ion
+RW UIN
+T16
+V 1 47605 1 0:
+101V
+1:
+202V
+√ √
+15
+1
+[Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack1
+]No.
+RW UIN
+T16
+N/
+A
+N/
+A
+47750 1 [0,65
+534]
+Defau
+lt: 0.
+Whic
+h
+mean
+s no
+equip
+ment.
+√
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 65
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+15
+2
+[Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack2
+]No.
+RW UIN
+T16
+N/
+A
+N/
+A
+47751 1 [0,65
+534]
+Defau
+lt: 0.
+Whic
+h
+mean
+s no
+equip
+ment.
+√
+15
+3
+[Energ
+y
+storag
+e unit
+1]
+[Batte
+ry
+pack3
+]No.
+RW UIN
+T16
+N/
+A
+N/
+A
+47752 1 [0,65
+534]
+Defau
+lt: 0.
+Whic
+h
+mean
+s no
+equip
+ment.
+√
+15
+4
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack1
+]No.
+RW UIN
+T16
+N/
+A
+N/
+A
+47753 1 [0,65
+534]
+Defau
+lt: 0.
+Whic
+h
+mean
+s no
+equip
+ment.
+√
+15
+5
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack2
+]No.
+RW UIN
+T16
+N/
+A
+N/
+A
+47754 1 [0,65
+534]
+Defau
+lt: 0.
+Whic
+h
+mean
+s no
+equip
+ment.
+√
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 66
+N
+o.
+Signal
+Name
+Read/
+Write
+Type Uni
+t
+Gai
+n
+Address Quanti
+ty
+Scope HUAWEI-
+LUNA200
+0
+LG-RESU
+15
+6
+[Energ
+y
+storag
+e unit
+2]
+[Batte
+ry
+pack3
+]No.
+RW UIN
+T16
+N/
+A
+N/
+A
+47755 1 [0,65
+534]
+Defau
+lt: 0.
+Whic
+h
+mean
+s no
+equip
+ment.
+√
+ 
+NO TICE
+[1]Two sets of energy storage devices at most can be connected to one inverter. If
+the inverter is connected to only one set of energy storage devices, the energy
+storage unit(ESU) corresponds to [Energy storage unit 1]. If two ESUs are
+connected, the second ESU corresponds to [Energy storage unit 2]. Currently, only
+one set of LG-RESU can be connected, and two sets of HUAWEI-LUNA2000 can be
+connected.
+[2] (√) indicates that the register is used by LG energy storage devices in the old
+inverter but is no longer used in the new version.
+3.3 Meter Equipment Register
+Table 3-3 Meter Register Defination List
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+1 Meter
+status
+RO UINT1
+6
+N/A 1 37100 1 0: offline
+1: normal
+2 Grid
+voltage (A
+phase)
+RO INT32 V 10 37101 2
+3 B phase
+voltage
+RO INT32 V 10 37103 2
+4 C phase
+voltage
+RO INT32 V 10 37105 2
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 67
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+5 Grid
+current(A
+phase)
+RO INT32 A 100 37107 2
+6 B phase
+current
+RO INT32 A 100 37109 2
+7 C phase
+current
+RO INT32 A 100 37111 2
+8 Active
+power
+RO INT32 W 1 37113 2 >0: feed-in
+to the
+power grid.
+<0: supply
+from the
+power grid.
+9 Reactive
+power
+RO INT32 Var 1 37115 2
+10 Power
+factor
+RO INT16 NA 1000 37117 1
+11 Grid
+frequency
+RO INT16 Hz 100 37118 1
+12 Positive
+active
+electricity
+RO INT32 kWh 100 37119 2 Electricity
+fed by the
+inverter to
+the power
+grid.
+13 Reverse
+active
+power
+RO INT32 kWh 100 37121 2 Power
+supplied to
+a
+distributed
+system
+from the
+power grid.
+14 Accumulat
+ed reactive
+power
+RO INT32 kVar
+h
+100 37123 2
+15 Meter type RO UINT1
+6
+N/A 1 37125 1 0: single-
+phase.
+1: three-
+phase.
+16 A-B line
+voltage
+RO INT32 V 10 37126 2
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 68
+No. Signal
+Name
+Read/
+Write
+Type Unit Gain Address Quantity Scope
+17 B-C line
+voltage
+RO INT32 V 10 37128 2
+18 CA line
+voltage
+RO INT32 V 10 37130 2
+19 A phase
+active
+power
+RO INT32 W 1 37132 2 > 0: feed-in
+to the
+power grid.
+<0: supply
+from the
+power grid
+20 B phase
+active
+power
+RO INT32 W 1 37134 2 > 0: feed-in
+to the
+power grid.
+<0: supply
+from the
+power grid
+21 C phase
+active
+power
+RO INT32 W 1 37136 2 > 0: feed-in
+to the
+power grid.
+<0: supply
+from the
+power grid
+22 Meter
+model
+detection
+result
+RO UINT1
+6
+N/A 1 37138 1 0: being
+identified
+1: The
+selected
+model is
+the same
+as the
+actual
+model of
+the
+connected
+meter.
+2: The
+selected
+model is
+different
+from the
+actual
+model of
+the
+connected
+meter.
+Solar Inverter Modbus Interface Definitions 3 Register Definitions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 69
+4 Customized Interfaces
+4.1 Obtaining the System Information of Optimizers
+Data synchronization mechanism: The host is driven to refresh the system
+information of optimizers by the change of the serial number (SN).
+Synchronization process: For details, see 6.3.7.1 Uploading Files.
+Data storage of the solar inverters: After the device search and positioning are
+complete, the record is updated. The record format is as follows:
+File type: 0x45
+Table 4-1 File format(V102)
+Data Length (Bytes) Remarks
+File version 4 V102
+Feature data sequence number 2
+Length 2
+Reserved 1 The reserved byte 0 is defined
+as the status.
+bit0: inverter disconnection
+status (1=disconnected)
+3
+Number of optimizers 2 Total number, including the
+offline optimizers.
+Feature data of optimizer 1 108 For details about the data
+domain definition, see the
+Optimizer Feature Data
+Domain Definition.
+Feature data of optimizer 2 108
+Solar Inverter Modbus Interface Definitions 4 Customized Interfaces
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 70
+Data Length (Bytes) Remarks
+Feature data of optimizer… 108
+Feature data of optimizer N 108
+ 
+Table 4-2 Feature data unit format(V102)
+Data Length (Bytes) Remarks
+Optimizer address 2 RS485 address
+Online status 2 0: offline
+1: online
+2: disconnected
+String number 2
+Position in current string 2 relative positive connection
+starting point
+SN 20
+Software version 30
+Alias 20
+Model 30
+ 
+Table 4-3 Record format(V101)
+Data Length (Byte) Remarks
+Format version 4 V101
+SN 2 -
+Length 2 -
+Reserved 4 -
+Number of optimizers 2 n, including the offline
+optimizers
+Feature data of optimizer 1 78 -
+Feature data of optimizer 2 78 -
+... ... -
+Feature data of optimizer n 78 -
+ 
+Solar Inverter Modbus Interface Definitions 4 Customized Interfaces
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 71
+Table 4-4 Feature data format (V101)
+Data Length (Byte) Remarks
+Optimizer address 2 Logical communication
+address
+Status 2 0: offline
+1: online
+String number 2 -
+Relative position of the PV
+string
+2 1: near DC wiring terminals of
+the solar inverters
+SN 20 -
+Software version 30 -
+Alias 20 -
+ 
+4.2 Obtaining Real-time Data of Optimizers
+Data synchronization mechanism: five-minute interval
+Synchronization process: uploads the files and synchronizes data according to the
+time period; uploads the most recent data if there is no filter condition. For details,
+see 6.3.7.1 Uploading Files.
+Data storage: stores real-time data at five-minute intervals.
+File type: 0x44
+Table 4-5 Record format
+Data Length (Byte) Remarks
+File version 4 V101
+Reserved 8 -
+Optimizer data unit 1 N 12 + 26 x Number of
+optimizers , For details about
+the definition of this unit, see
+the data unit format.
+Optimizer data unit 2 N -
+... - -
+Optimizer data unit n N n indicates the number of data
+records that meet the filter
+condition. Each piece of data
+contains all optimizer data for
+a time node.
+Solar Inverter Modbus Interface Definitions 4 Customized Interfaces
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 72
+ 
+Table 4-6 Data unit format (V101)
+Data Length (Byte) Remarks
+Time 4 Epoch seconds, local time
+Reserved 4 -
+Length 2 -
+Number of optimizers 2 -
+Real-time data of optimizer 1 26 For details about the definition of this unit,
+see the real-time data format.
+Real-time data of optimizer 2 26 -
+... - -
+Real-time data of optimizer n 26 n is the number of optimizers.
+ 
+Table 4-7 Real-time data format
+Data Length (Byte) Remarks
+Optimizer address 2 Logical communication address
+Output power 2 Gain: 10
+Unit: W
+Voltage to ground 2 Gain: 10
+Unit: V
+Solar Inverter Modbus Interface Definitions 4 Customized Interfaces
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 73
+Data Length (Byte) Remarks
+Alarm 4 Bit00: input overvoltage
+Bit01: input undervoltage
+Bit02: output overvoltage
+Bit04: overtemperature
+Bit06: output short circuit
+Bit07: EEPROM fault
+Bit08: internal hardware fault
+Bit09: abnormal voltage to ground
+Bit 10: power-off due to heartbeat timeout
+Bit 11: fast shutdown
+Bit 12: request escape alarm
+Bit 13: version mismatch alarm
+Bit 16: input overvoltage
+Bit 17: overtemperature
+Bit 18: output short circuit
+Bit 19: internal hardware fault
+Bit 20: version mismatch alarm
+Bit 21: backfeed alarm
+Bit 22: abnormal output voltage
+Bit 23: upgrade failure
+Bit 31: alarm display selection, 1=Display
+bit 16 to bit 30 alarms, 0: Bits 0 to 15 are
+displayed.
+Output voltage 2 Gain: 10
+Unit: V
+Output current 2 Gain: 100
+Unit: A
+Input voltage 2 Gain: 10
+Unit: V
+Input current 2 Gain: 100
+Unit: A
+Temperature 2 Gain: 10
+Unit: °C
+Solar Inverter Modbus Interface Definitions 4 Customized Interfaces
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 74
+Data Length (Byte) Remarks
+Running status 2 0: offline
+1: standby
+3: faulty
+4: running
+12: power-off
+Accumulated energy yield 4 Gain: 1000
+Unit: kWh
+Solar Inverter Modbus Interface Definitions 4 Customized Interfaces
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 75
+5 Interface Instructions
+5.1 Alarm Information
+Table 5-1 Alarm information
+No. Alarm Bit Alarm Name Alarm ID Level
+1 Alarm
+1
+0 High String Input Voltage 2001 Major
+2 Alarm
+1
+1 DC Arc Fault[1] 2002 Major
+3 Alarm
+1
+2 String Reverse Connection 2011 Major
+4 Alarm
+1
+3 String Current Backfeed 2012 Warning
+5 Alarm
+1
+4 Abnormal String Power 2013 Warning
+6 Alarm
+1
+5 AFCI Self-Check Fail.[1] 2021 Major
+7 Alarm
+1
+6 Phase Wire Short-Circuited to PE 2031 Major
+8 Alarm
+1
+7 Grid Loss 2032 Major
+9 Alarm
+1
+8 Grid Undervoltage 2033 Major
+10 Alarm
+1
+9 Grid Overvoltage 2034 Major
+11 Alarm
+1
+10 Grid Volt. Imbalance 2035 Major
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 76
+No. Alarm Bit Alarm Name Alarm ID Level
+12 Alarm
+1
+11 Grid Overfrequency 2036 Major
+13 Alarm
+1
+12 Grid Underfrequency 2037 Major
+14 Alarm
+1
+13 Unstable Grid Frequency 2038 Major
+15 Alarm
+1
+14 Output Overcurrent 2039 Major
+16 Alarm
+1
+15 Output DC Component Overhigh 2040 Major
+17 Alarm
+2
+0 Abnormal Residual Current 2051 Major
+18 Alarm
+2
+1 Abnormal Grounding 2061 Major
+19 Alarm
+2
+2 Low Insulation Resistance 2062 Major
+20 Alarm
+2
+3 Overtemperature 2063 Minor
+21 Alarm
+2
+4 Device Fault 2064 Major
+22 Alarm
+2
+5 Upgrade Failed or Version Mismatch 2065 Minor
+23 Alarm
+2
+6 License Expired 2066 Warning
+24 Alarm
+2
+7 Faulty Monitoring Unit 61440 Minor
+25 Alarm
+2
+8 Faulty Power Collector[2] 2067 Major
+26 Alarm
+2
+9 Battery abnormal 2068 Minor
+27 Alarm
+2
+10 Active Islanding 2070 Major
+28 Alarm
+2
+11 Passive Islanding 2071 Major
+29 Alarm
+2
+12 Transient AC Overvoltage 2072 Major
+30 Alarm
+2
+13 Peripheral port short circuit[3] 2075 Warning
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 77
+No. Alarm Bit Alarm Name Alarm ID Level
+31 Alarm
+2
+14 Churn output overload[4] 2077 Major
+32 Alarm
+2
+15 Abnormal PV module configuration 2080 Major
+33 Alarm
+3
+0 Optimizer fault[5] 2081 Warning
+34 Alarm
+3
+1 Built-in PID operation abnormal[6] 2085 Minor
+35 Alarm
+3
+2 High input string voltage to ground. 2014 Major
+36 Alarm
+3
+3 External Fan Abnormal 2086 Major
+37 Alarm
+3
+4 Battery Reverse Connection[7] 2069 Major
+38 Alarm
+3
+5 On-grid/Off-grid controller
+abnormal[4]
+2082 Major
+39 Alarm
+3
+6 PV String Loss 2015 Warning
+40 Alarm
+3
+7 Internal Fan Abnormal 2087 Major
+41 Alarm
+3
+8 DC Protection Unit Abnormal[8] 2088 Major
+42 Alarm
+3
+9 EL Unit Abnormal 2089 Minor
+43 Alarm
+3
+10 Active Adjustment Instruction
+Abnormal
+2090 Major
+44 Alarm
+3
+11 Reactive Adjustment Instruction
+Abnormal
+2091 Major
+45 Alarm
+3
+12 CT Wiring Abnormal 2092 Major
+46 Alarm
+3
+13 DC Arc Fault(ADMC Alarm to be
+clear manually)
+2003 Major
+47 Alarm
+3
+14 DC Switch Abnormal 2093 Minor
+48 Alarm
+3
+15 Allowable discharge capacity of the
+battery is low
+2094 Warning
+ 
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 78
+NO TICE
+The preceding table lists the alarm information about Huawei solar inverters.
+Some alarms can be detected only after corresponding functional modules are
+configured.
+NO TE
+[1] AFCI functional unit
+[2] Power collector or power meter connected to the solar inverters
+[3] Detection of the external ports of the solar inverters that provide the 12 V power supply
+[4] This item can be detected when a built-in or external on-grid/off-grid functional unit is
+configured.
+[5] This item can be detected when optimizers are configured on the DC side.
+[6] This item can be detected when the solar inverters are configured with PID functional
+units.
+[7] This item can be detected when energy storage units (ESUs) are configured.
+[8] Some models have DC protection units.
+5.2 Power Grid Scheduling
+This section describes the curve configuration format and precautions for power
+grid scheduling by curve.
+5.2.1 cosφ-P/Pn Characteristic Curve
+Table 5-2 cosφ-P/Pn characteristic curve definition
+Description Data Type Gain Unit Value Range
+Number of points U16 1 N/A [2, 10]
+P/Pn value at point 1 U16 10 % [0, 100]
+cosφ value at point 1 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+P/Pn value at point 2 U16 10 % [0, 100]
+cosφ value at point 2 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+P/Pn value at point 3 U16 10 % [0, 100]
+cosφ value at point 3 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+P/Pn value at point 4 U16 10 % [0, 100]
+cosφ value at point 4 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+P/Pn value at point 5 U16 10 % [0, 100]
+cosφ value at point 5 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+P/Pn value at point 6 U16 10 % [0, 100]
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 79
+Description Data Type Gain Unit Value Range
+cosφ value at point 6 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+P/Pn value at point 7 U16 10 % [0,100]
+cosφ value at point 7 I16 1000 N/A (–1,–0.8]U[0.8,1]
+P/Pn value at point 8 U16 10 % [0, 100]
+cosφ value at point 8 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+P/Pn value at point 9 U16 10 % [0, 100]
+cosφ value at point 9 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+P/Pn value at point 10 U16 10 % [0, 100]
+cosφ value at point 10 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+ 
+5.2.2 Q-U Characteristic Curve
+Table2 Q-U Characteristic Curve definition
+Description Data
+Type
+Gain Unit Value Range
+Number of points U16 1 N/A [2, 10]
+U/Un value at point 1 U16 10 % [80, 136]
+Q/S value at point 1 I16 1000 N/A [–0.6, 0.6]
+U/Un value at point 2 U16 10 % [80, 136]
+Q/S value at point 2 I16 1000 N/A [–0.6, 0.6]
+U/Un value at point 3 U16 10 % [80, 136]
+Q/S value at point 3 I16 1000 N/A [–0.6, 0.6]
+U/Un value at point 4 U16 10 % [80, 136]
+Q/S value at point 4 I16 1000 N/A [–0.6, 0.6]
+U/Un value at point 5 U16 10 % [80, 136]
+Q/S value at point 5 I16 1000 N/A [–0.6, 0.6]
+U/Un value at point 6 U16 10 % [80, 136]
+Q/S value at point 6 I16 1000 N/A [–0.6, 0.6]
+U/Un value at point 7 U16 10 % [80, 136]
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 80
+Description Data
+Type
+Gain Unit Value Range
+Q/S value at point 7 I16 1000 N/A [–0.6, 0.6]
+U/Un value at point 8 U16 10 % [80, 136]
+Q/S value at point 8 I16 1000 N/A [–0.6, 0.6]
+U/Un value at point 9 U16 10 % [80, 136]
+Q/S value at point 9 I16 1000 N/A [–0.6, 0.6]
+U/Un value at point 10 U16 10 % [80, 136]
+Q/S value at point 10 I16 1000 N/A [–0.6, 0.6]
+ 
+NO TICE
+In Italian standards, this curve may be used together with the Q-U characteristic
+curve mode, Q-U dispatch trigger power (%), and Q-U power percentage to
+exit scheduling parameters.
+5.2.3 PF-U Characteristic Curve
+Table3 PF-U Characteristic Curve definition
+Description Data Type Gain Unit Value Range
+Number of points U16 1 N/A [2, 10]
+U/Un value at point 1 U16 10 % [80, 136]
+PF value at point 1 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+U/Un value at point 2 U16 10 % [80, 136]
+PF value at point 2 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+U/Un value at point 3 U16 10 % [80, 136]
+PF value at point 3 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+U/Un value at point 4 U16 10 % [80, 136]
+PF value at point 4 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+U/Un value at point 5 U16 10 % [80, 136]
+PF value at point 5 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+U/Un value at point 6 U16 10 % [80, 136]
+PF value at point 6 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 81
+Description Data Type Gain Unit Value Range
+U/Un value at point 7 U16 10 % [80, 136]
+PF value at point 7 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+U/Un value at point 8 U16 10 % [80, 136]
+PF value at point 8 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+U/Un value at point 9 U16 10 % [80, 136]
+PF value at point 9 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+U/Un value at point 10 U16 10 % [80, 136]
+PF value at point 10 I16 1000 N/A (–1, –0.8]U[0.8, 1]
+ 
+5.3 Grid Codes
+Table 5-3 List of grid codes
+No. Standard Applicable Country or
+Region
+0 VDE-AR-N-4105 Germany
+1 NB/T 32004 China
+2 UTE C 15-712-1(A) France
+3 UTE C 15-712-1(B) France
+4 UTE C 15-712-1(C) France
+5 VDE 0126-1-1-BU Bulgaria
+6 VDE 0126-1-1-GR(A) Greece
+7 VDE 0126-1-1-GR(B) Greece
+8 BDEW-MV Germany
+9 G59-England UK
+10 G59-Scotland UK
+11 G83-England UK
+12 G83-Scotland UK
+13 CEI0-21 Italy
+14 EN50438-CZ Czech Republic
+15 RD1699/661 Spain
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 82
+No. Standard Applicable Country or
+Region
+16 RD1699/661-MV480 Spain
+17 EN50438-NL Netherlands
+18 C10/11 Belgium
+19 AS4777 Australia
+20 IEC61727 General
+21 Custom (50 Hz) Custom
+22 Custom (60 Hz) Custom
+23 CEI0-16 Italy
+24 CHINA-MV480 China
+25 CHINA-MV China
+26 TAI-PEA Thailand
+27 TAI-MEA Thailand
+28 BDEW-MV480 Germany
+29 Custom MV480 (50 Hz) Custom
+30 Custom MV480 (60 Hz) Custom
+31 G59-England-MV480 UK
+32 IEC61727-MV480 General
+33 UTE C 15-712-1-MV480 France
+34 TAI-PEA-MV480 Thailand
+35 TAI-MEA-MV480 Thailand
+36 EN50438-DK-MV480 Denmark
+37 Japan standard (50 Hz) Japan
+38 Japan standard (60 Hz) Japan
+39 EN50438-TR-MV480 Turkey
+40 EN50438-TR Turkey
+41 C11/C10-MV480 Belgium
+42 Philippines Philippines
+43 Philippines-MV480 Philippines
+44 AS4777-MV480 Australia
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 83
+No. Standard Applicable Country or
+Region
+45 NRS-097-2-1 South Africa
+46 NRS-097-2-1-MV480 South Africa
+47 KOREA South Korea
+48 IEEE 1547-MV480 USA
+49 IEC61727-60Hz General
+50 IEC61727-60Hz-MV480 General
+51 CHINA_MV500 China
+52 ANRE Romania
+53 ANRE-MV480 Romania
+54 ELECTRIC RULE NO.21-
+MV480
+California, USA
+55 HECO-MV480 Hawaii, USA
+56 PRC_024_Eastern-MV480 Eastern USA
+57 PRC_024_Western-
+MV480
+Western USA
+58 PRC_024_Quebec-MV480 Quebec, Canada
+59 PRC_024_ERCOT-MV480 Texas, USA
+60 PO12.3-MV480 Spain
+61 EN50438_IE-MV480 Ireland
+62 EN50438_IE Ireland
+63 IEEE 1547a-MV480 USA
+64 Japan standard
+(MV420-50 Hz)
+Japan
+65 Japan standard
+(MV420-60 Hz)
+Japan
+66 Japan standard
+(MV440-50 Hz)
+Japan
+67 Japan standard
+(MV440-60 Hz)
+Japan
+68 IEC61727-50Hz-MV500 General
+70 CEI0-16-MV480 Italy
+71 PO12.3 Spain
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 84
+No. Standard Applicable Country or
+Region
+72 Japan standard
+(MV400-50 Hz)
+Japan
+73 Japan standard
+(MV400-60 Hz)
+Japan
+74 CEI0-21-MV480 Italy
+75 KOREA-MV480 South Korea
+76 Egypt ETEC Egypt
+77 Egypt ETEC-MV480 Egypt
+78 CHINA_MV800 China
+79 IEEE 1547-MV600 USA
+80 ELECTRIC RULE NO.21-
+MV600
+California, USA
+81 HECO-MV600 Hawaii, USA
+82 PRC_024_Eastern-MV600 Eastern USA
+83 PRC_024_Western-
+MV600
+Western USA
+84 PRC_024_Quebec-MV600 Quebec, Canada
+85 PRC_024_ERCOT-MV600 Texas, USA
+86 IEEE 1547a-MV600 USA
+87 EN50549-LV Ireland
+88 EN50549-MV480 Ireland
+89 Jordan-Transmission Jordan
+90 Jordan-Transmission-
+MV480
+Jordan
+91 NAMIBIA Namibia
+92 ABNT NBR 16149 Brazil
+93 ABNT NBR 16149-
+MV480
+Brazil
+94 SA_RPPs South Africa
+95 SA_RPPs-MV480 South Africa
+96 INDIA India
+97 INDIA-MV500 India
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 85
+No. Standard Applicable Country or
+Region
+98 ZAMBIA Zambia
+99 ZAMBIA-MV480 Zambia
+100 Chile Chile
+101 Chile-MV480 Chile
+102 CHINA-MV500-STD China
+103 CHINA-MV480-STD China
+104 Mexico-MV480 Mexico
+105 Malaysian Malaysia
+106 Malaysian-MV480 Malaysia
+107 KENYA_ETHIOPIA East Africa
+108 KENYA_ETHIOPIA-
+MV480
+East Africa
+109 G59-England-MV800 UK
+110 NIGERIA Nigeria
+111 NIGERIA-MV480 Nigeria
+112 DUBAI Dubai
+113 DUBAI-MV480 Dubai
+114 Northern Ireland Northern Ireland
+115 Northern Ireland-MV480 Northern Ireland
+116 Cameroon Cameroon
+117 Cameroon-MV480 Cameroon
+118 Jordan-Distribution Jordan
+119 Jordan-Distribution-
+MV480
+Jordan
+120 Custom MV600-50 Hz Custom
+121 AS4777-MV800 Australia
+122 INDIA-MV800 India
+123 IEC61727-MV800 General
+124 BDEW-MV800 Germany
+125 ABNT NBR 16149-
+MV800
+Brazil
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 86
+No. Standard Applicable Country or
+Region
+126 UTE C 15-712-1-MV800 France
+127 Chile-MV800 Chile
+128 Mexico-MV800 Mexico
+129 EN50438-TR-MV800 Turkey
+130 TAI-PEA-MV800 Thailand
+131 Philippines-MV800 Philippines
+132 Malaysian-MV800 Malaysia
+133 NRS-097-2-1-MV800 South Africa
+134 SA_RPPs-MV800 South Africa
+135 Jordan-Transmission-
+MV800
+Jordan
+136 Jordan-Distribution-
+MV800
+Jordan
+137 Egypt ETEC-MV800 Egypt
+138 DUBAI-MV800 Dubai
+139 SAUDI-MV800 Saudi Arabia
+140 EN50438_IE-MV800 Ireland
+141 EN50549-MV800 Ireland
+142 Northern Ireland-MV800 Northern Ireland
+143 CEI0-21-MV800 Italy
+144 IEC 61727-MV800-60Hz General
+145 NAMIBIA_MV480 Namibia
+146 Japan (LV202-50 Hz) Japan
+147 Japan (LV202-60 Hz) Japan
+148 Pakistan-MV800 Pakistan
+149 BRASIL-ANEEL-MV800 Brazil
+150 Israel-MV800 Israel
+151 CEI0-16-MV800 Italy
+152 ZAMBIA-MV800 Zambia
+153 KENYA_ETHIOPIA-
+MV800
+East Africa
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 87
+No. Standard Applicable Country or
+Region
+154 NAMIBIA_MV800 Namibia
+155 Cameroon-MV800 Cameroon
+156 NIGERIA-MV800 Nigeria
+157 ABUDHABI-MV800 Abu Dhabi
+158 LEBANON Lebanon
+159 LEBANON-MV480 Lebanon
+160 LEBANON-MV800 Lebanon
+161 ARGENTINA-MV800 Argentina
+162 ARGENTINA-MV500 Argentina
+163 Jordan-Transmission-HV Jordan
+164 Jordan-Transmission-
+HV480
+Jordan
+165 Jordan-Transmission-
+HV800
+Jordan
+166 TUNISIA Tunisia
+167 TUNISIA-MV480 Tunisia
+168 TUNISIA-MV800 Tunisia
+169 JAMAICA-MV800 Jamaica
+170 AUSTRALIA-NER Australia
+171 AUSTRALIA-NER-MV480 Australia
+172 AUSTRALIA-NER-MV800 Australia
+173 SAUDI Saudi Arabia
+174 SAUDI-MV480 Saudi Arabia
+175 Ghana-MV480 Ghana
+176 Israel Israel
+177 Israel-MV480 Israel
+178 Chile-PMGD Chile
+179 Chile-PMGD-MV480 Chile
+180 VDE-AR-N4120-HV Germany
+181 VDE-AR-N4120-HV480 Germany
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 88
+No. Standard Applicable Country or
+Region
+182 VDE-AR-N4120-HV800 Germany
+183 IEEE 1547-MV800 USA
+184 Nicaragua-MV800 Nicaragua
+185 IEEE 1547a-MV800 USA
+186 ELECTRIC RULE NO.21-
+MV800
+California, USA
+187 HECO-MV800 Hawaii, USA
+188 PRC_024_Eastern-MV800 Eastern USA
+189 PRC_024_Western-
+MV800
+Western USA
+190 PRC_024_Quebec-MV800 Quebec, Canada
+191 PRC_024_ERCOT-MV800 Texas, USA
+192 Custom-MV800-50Hz Custom
+193 RD1699/661-MV800 Spain
+194 PO12.3-MV800 Spain
+195 Mexico-MV600 Mexico
+196 Vietnam-MV800 Vietnam
+197 CHINA-LV220/380 China
+198 SVG-LV Dedicated
+199 Vietnam Vietnam
+200 Vietnam-MV480 Vietnam
+201 Chile-PMGD-MV800 Chile
+202 Ghana-MV800 Ghana
+203 TAIPOWER Taiwan
+204 TAIPOWER-MV480 Taiwan
+205 TAIPOWER-MV800 Taiwan
+206 IEEE 1547-LV208 USA
+207 IEEE 1547-LV240 USA
+208 IEEE 1547a-LV208 USA
+209 IEEE 1547a-LV240 USA
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 89
+No. Standard Applicable Country or
+Region
+210 ELECTRIC RULE NO.21-
+LV208
+USA
+211 ELECTRIC RULE NO.21-
+LV240
+USA
+212 HECO-O+M+H-LV208 USA
+213 HECO-O+M+H-LV240 USA
+214 PRC_024_Eastern-LV208 USA
+215 PRC_024_Eastern-LV240 USA
+216 PRC_024_Western-LV208 USA
+217 PRC_024_Western-LV240 USA
+218 PRC_024_ERCOT-LV208 USA
+219 PRC_024_ERCOT-LV240 USA
+220 PRC_024_Quebec-LV208 USA
+221 PRC_024_Quebec-LV240 USA
+222 ARGENTINA-MV480 Argentina
+223 Oman Oman
+224 Oman-MV480 Oman
+225 Oman-MV800 Oman
+226 Kuwait Kuwait
+227 Kuwait-MV480 Kuwait
+228 Kuwait-MV800 Kuwait
+229 Bangladesh Bangladesh
+230 Bangladesh-MV480 Bangladesh
+231 Bangladesh-MV800 Bangladesh
+232 Chile-Net_Billing Chile
+233 EN50438-NL-MV480 Netherlands
+234 Bahrain Bahrain
+235 Bahrain-MV480 Bahrain
+236 Bahrain-MV800 Bahrain
+238 Japan-MV550-50Hz Japan
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 90
+No. Standard Applicable Country or
+Region
+239 Japan-MV550-60Hz Japan
+241 ARGENTINA Argentina
+242 KAZAKHSTAN-MV800 Kazakhstan
+243 Mauritius Mauritius
+244 Mauritius-MV480 Mauritius
+245 Mauritius-MV800 Mauritius
+246 Oman-PDO-MV800 Oman
+247 EN50438-SE Sweden
+248 TAI-MEA-MV800 Thailand
+249 Pakistan Pakistan
+250 Pakistan-MV480 Pakistan
+251 PORTUGAL-MV800 Portugal
+252 HECO-L+M-LV208 USA
+253 HECO-L+M-LV240 USA
+254 C10/11-MV800 Belgium
+255 Austria Austria
+256 Austria-MV480 Austria
+257 G98 UK
+258 G99-TYPEA-LV UK
+259 G99-TYPEB-LV UK
+260 G99-TYPEB-HV UK
+261 G99-TYPEB-HV-MV480 UK
+262 G99-TYPEB-HV-MV800 UK
+263 G99-TYPEC-HV-MV800 UK
+264 G99-TYPED-MV800 UK
+265 G99-TYPEA-HV UK
+266 CEA-MV800 India
+267 EN50549-MV400 Europe
+268 VDE-AR-N4110 Germany
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 91
+No. Standard Applicable Country or
+Region
+269 VDE-AR-N4110-MV480 Germany
+270 VDE-AR-N4110-MV800 Germany
+271 Panama-MV800 Panama
+272 North Macedonia-
+MV800
+Nprth Macedonia
+273 NTS Spain
+274 NTS-MV480 Spain
+275 NTS-MV800 Spain
+ 
+NO TICE
+Set the grid code based on local laws and regulations.
+5.4 Energy Storage Specifications
+Table 5-4 Format description of parameters for time-of-use electricity price periods(LG-RESU)
+Description Data Type Gain Unit Value Range
+Number of periods U16 1 N/A [0, 10]
+Start time of period 1 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+End time of period 1 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+Electricity price in period 1 U32 1000 N/A N/A
+Start time of period 2 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 92
+Description Data Type Gain Unit Value Range
+End time of period 2 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+Electricity price in period 2 U32 1000 N/A N/A
+... ... ... ... ...
+Start time of period 10 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+End time of period 10 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+Electricity price in period
+10
+U32 1000 N/A N/A
+ 
+Table 5-5 Format description of parameters for fixed charging and discharging periods
+Description Data Type Gain Unit Value Range
+Number of periods U16 1 N/A [0, 10]
+Start time of period 1 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+End time of period 1 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+Charging and discharging
+power in period 1
+I32 1 W [Discharging power limit,
+Charging power limit]. For
+details, see the description
+of the supported model.
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 93
+Description Data Type Gain Unit Value Range
+Start time of period 2 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+End time of period 2 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+Charging and discharging
+power in period 2
+I32 1 W [Discharging power limit,
+Charging power limit]. For
+details, see the description
+of the supported model.
+... ... ... ... ...
+Start time of period 10 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+End time of period 10 U16 1 min [0, 1440]. The value is the
+elapsed minutes since
+00:00 a.m. The start time
+should be earlier than the
+end time.
+Charging and discharging
+power in period 10
+I32 1 W [Discharging power limit,
+Charging power limit]. For
+details, see the description
+of the supported model.
+ 
+Table 5-6 Format description of parameters for time-of-use electricity price periods(HUAWEI-
+LUNA2000)
+Description Data Type Gain Unit Value Range
+Number of periods U16 1 - [0, 14]
+Start time of period 1 U16 1 min [0, 1440]. The value is
+the elapsed minutes
+since 00:00 a.m. The start
+time should be earlier
+than the end time.
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 94
+Description Data Type Gain Unit Value Range
+End time of period 1 U16 1 min [0, 1440]. The value is
+the elapsed minutes
+since 00:00 a.m. The start
+time should be earlier
+than the end time.
+Charge/Discharge flag of
+period 1
+U8 - - 0:Charge
+1:Discharge
+Effective time flag of
+period 1
+U8 - - There are 7 bits (from bit
+0 to bit 6) standing for
+each day of a week
+(from Sunday to
+Saturday).
+0: invalid
+1: valid
+Start time of period 2 U16 1 min [0, 1440]. The value is
+the elapsed minutes
+since 00:00 a.m. The start
+time should be earlier
+than the end time.
+End time of period 2 U16 1 min [0, 1440]. The value is
+the elapsed minutes
+since 00:00 a.m. The start
+time should be earlier
+than the end time.
+Charge/Discharge flag of
+period 2
+U8 - - 0:Charge
+1:Discharge
+Effective time flag of
+period 2
+U8 - - There are 7 bits (from bit
+0 to bit 6) standing for
+each day of a week
+(from Sunday to
+Saturday).
+0: invalid
+1: valid
+…… - - - -
+Start time of period 14 U16 1 min [0, 1440]. The value is
+the elapsed minutes
+since 00:00 a.m. The start
+time should be earlier
+than the end time.
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 95
+Description Data Type Gain Unit Value Range
+End time of period 14 U16 1 min [0, 1440]. The value is
+the elapsed minutes
+since 00:00 a.m. The start
+time should be earlier
+than the end time.
+Charge/Discharge flag of
+period 14
+U8 - - 0:Charge
+1:Discharge
+Effective time flag of
+period 14
+U8 - - There are 7 bits (from bit
+0 to bit 6) standing for
+each day of a week
+(from Sunday to
+Saturday).
+0: invalid
+1: valid
+Solar Inverter Modbus Interface Definitions 5 Interface Instructions
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 96
+6 Overview of the Communications
+Protocol
+The Modbus communications protocol consists of the following layers.
+Figure 6-1 Modbus protocol layers
+6.1 Physical Layer
+Huawei solar inverters provide Modbus communication based on physical media
+such as MBUS, RS485, WLAN, FE, and 4G. MBUS and RS485 comply with the
+Modbus-RTU format. The communication through the WLAN, FE, and 4G media is
+based on the TCP link and complies with the Modbus-TCP format.
+6.2 Data Link Layer
+The following figure shows the generic frame structure of the Modbus protocol.
+Figure 6-2 Modbus generic frame format
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 97
+6.2.1 Modbus-RTU
+Figure 6-3 Modbus-RTU frame format
+6.2.1.1 ADU Length
+The application data unit (ADU) consists of 256 bytes based on the serial bus.
+1. Slave address: 1 byte
+2. Cyclic redundancy check (CRC): 2 bytes
+3. PDU: 253 bytes
+6.2.1.2 Communications Address
+As shown in Figure 6-3, Modbus-RTU is usually used for serial communication.
+Slave address represents the address of a slave solar inverter. The address range is
+allocated as follows:
+Table 6-1 Serial link address allocation
+Broadcast Address Slave Node Address Reserved Address
+0 1–247 248–255
+ 
+Reserved addresses are used for access control of the communication extension
+modules. Huawei reserves the right to allocate the reserved addresses.
+6.2.1.3 CRC
+CRC applies to all bytes in front of the CRC code, which consists of 16 bits. The
+reference code is as follows:
+static unsigned char auchCRCHi[] = { 
+0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 
+0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 
+0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 
+0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 
+0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 
+0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 
+0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 
+0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 
+0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 
+0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 
+0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 
+0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 
+0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 
+0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 
+0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 98
+0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 
+0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 
+0x40 
+} ; 
+/*CRC values for the low-order byte*/ 
+static char auchCRCLo[] = { 
+0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x07, 0xC7, 0x05, 0xC5, 0xC4, 
+0x04, 0xCC, 0x0C, 0x0D, 0xCD, 0x0F, 0xCF, 0xCE, 0x0E, 0x0A, 0xCA, 0xCB, 0x0B, 0xC9, 0x09, 
+0x08, 0xC8, 0xD8, 0x18, 0x19, 0xD9, 0x1B, 0xDB, 0xDA, 0x1A, 0x1E, 0xDE, 0xDF, 0x1F, 0xDD, 
+0x1D, 0x1C, 0xDC, 0x14, 0xD4, 0xD5, 0x15, 0xD7, 0x17, 0x16, 0xD6, 0xD2, 0x12, 0x13, 0xD3, 
+0x11, 0xD1, 0xD0, 0x10, 0xF0, 0x30, 0x31, 0xF1, 0x33, 0xF3, 0xF2, 0x32, 0x36, 0xF6, 0xF7, 
+0x37, 0xF5, 0x35, 0x34, 0xF4, 0x3C, 0xFC, 0xFD, 0x3D, 0xFF, 0x3F, 0x3E, 0xFE, 0xFA, 0x3A, 
+0x3B, 0xFB, 0x39, 0xF9, 0xF8, 0x38, 0x28, 0xE8, 0xE9, 0x29, 0xEB, 0x2B, 0x2A, 0xEA, 0xEE, 
+0x2E, 0x2F, 0xEF, 0x2D, 0xED, 0xEC, 0x2C, 0xE4, 0x24, 0x25, 0xE5, 0x27, 0xE7, 0xE6, 0x26, 
+0x22, 0xE2, 0xE3, 0x23, 0xE1, 0x21, 0x20, 0xE0, 0xA0, 0x60, 0x61, 0xA1, 0x63, 0xA3, 0xA2, 
+0x62, 0x66, 0xA6, 0xA7, 0x67, 0xA5, 0x65, 0x64, 0xA4, 0x6C, 0xAC, 0xAD, 0x6D, 0xAF, 0x6F, 
+0x6E, 0xAE, 0xAA, 0x6A, 0x6B, 0xAB, 0x69, 0xA9, 0xA8, 0x68, 0x78, 0xB8, 0xB9, 0x79, 0xBB, 
+0x7B, 0x7A, 0xBA, 0xBE, 0x7E, 0x7F, 0xBF, 0x7D, 0xBD, 0xBC, 0x7C, 0xB4, 0x74, 0x75, 0xB5, 
+0x77, 0xB7, 0xB6, 0x76, 0x72, 0xB2, 0xB3, 0x73, 0xB1, 0x71, 0x70, 0xB0, 0x50, 0x90, 0x91, 
+0x51, 0x93, 0x53, 0x52, 0x92, 0x96, 0x56, 0x57, 0x97, 0x55, 0x95, 0x94, 0x54, 0x9C, 0x5C, 
+0x5D, 0x9D, 0x5F, 0x9F, 0x9E, 0x5E, 0x5A, 0x9A, 0x9B, 0x5B, 0x99, 0x59, 0x58, 0x98, 0x88, 
+0x48, 0x49, 0x89, 0x4B, 0x8B, 0x8A, 0x4A, 0x4E, 0x8E, 0x8F, 0x4F, 0x8D, 0x4D, 0x4C, 0x8C, 
+0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46, 0x86, 0x82, 0x42, 0x43, 0x83, 0x41, 0x81, 0x80,   0x40 
+}; 
+ 
+unsigned short CRC16 ( puchMsg, usDataLen ) /* The function returns the CRC as a unsigned short type */ 
+unsigned char *puchMsg ; /* message to calculate CRC upon */ 
+unsigned short usDataLen ; /* quantity of bytes in message */ 
+{ 
+unsigned char uchCRCHi = 0xFF ; /* high byte of CRC initialized */ 
+unsigned char uchCRCLo = 0xFF ; /* low byte of CRC initialized */ 
+unsigned uIndex ; /* will index into CRC lookup table */ 
+while (usDataLen--) /* pass through message buffer */ 
+{ 
+uIndex = uchCRCLo ^ *puchMsg++ ; /* calculate the CRC */ 
+uchCRCLo = uchCRCHi ^ auchCRCHi[uIndex] ; 
+uchCRCHi = auchCRCLo[uIndex] ; 
+} 
+return (uchCRCHi << 8 | uchCRCLo) ; 
+}
+Code source: MODBUS over Serial Line Specification and Implementation Guide
+V1.02
+6.2.2 Modbus-TCP
+Figure 6-4 Modbus-TCP frame format
+6.2.2.1 ADU Length
+The recommended frame length is 260 bytes based on the standard. When some
+extended functions are applied, the data service provider may extend the ADU to
+a proper length based on the resources it possesses, to improve network
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 99
+transmission efficiency. The ADU length is indicated by the length field in the
+MBAP packet header.
+6.2.2.2 MBAP Packet Header
+If Modbus is applied to TCP/IP, a dedicated MBAP packet header (Modbus
+application protocol packet header) is used to identify the Modbus ADU. The
+Modbus packet header consists of four fields and seven bytes, which are defined
+as follows.
+Table 6-2 MBAP definition
+Data Field Length
+(Byte)
+Description Client Server
+Transmissio
+n identifier
+2 Matching identifier
+between a request
+frame and a
+response frame
+Assigned by the
+client; better be
+unique for each
+data frame
+The identifier
+of the
+response
+frame from
+the server
+must be
+consistent
+with that of
+the request
+frame.
+Protocol
+type
+2 0 = Modbus
+protocol
+Assigned by the
+client; 0 by
+default
+The identifier
+of the
+response
+frame from
+the server
+must be
+consistent
+with that of
+the request
+frame.
+Data
+length
+2 Follow-up data
+length
+Assigned by the
+client based on
+the actual data
+frame
+Assigned by
+the server
+based on the
+actual frame
+length
+Logical
+device ID
+1 0 Assigned by the
+client based on
+the actual data
+frame request
+The identifier
+of the
+response
+frame from
+the server
+must be
+consistent
+with that of
+the request
+frame.
+ 
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 100
+6.2.2.3 Communications Address
+Based on the TCP communications host, unit 0 is used by default to access the
+directly connected slave node, and other addresses are used to access the
+downstream devices of the slave node. The default address of the slave node is 0.
+The address is adjustable.
+Figure 6-5 Communications address of the three-layer object structure
+6.2.2.4 TCP Port
+In a local area network or VPN environment, the master node may actively initiate
+TCP socket link establishment to the slave node. The master node can use the
+6607 port to request data services from the slave node.
+In a non-VPN environment across the public network, the device deployed on the
+internal network needs to initiate TCP socket link establishment to the master
+node exposed on the public network. In this case, you need to preset the fixed
+access port number of the master node on the slave node. To ensure security and
+reduce traffic, the master node must provide at least one encrypted port and one
+non-encrypted port.
+6.2.2.5 TCP Link Establishment Process
+This section focuses on the cross-public network application.
+The following figure shows the process of connecting a slave node.
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 101
+Figure 6-6 Process of establishing a secure TCP connection
+6.3 Application Layer
+6.3.1 Function Code List
+Table 6-3 Function code list
+Function Code Meaning Remarks
+0x03 Read registers. Continuously reads a
+single register or
+multiple registers.
+0x06 Write a single register. Writes into a single
+register.
+0x10 Write multiple registers. Continuously writes into
+multiple registers.
+ 
+6.3.2 Exception Code List
+The exception codes must be unique for each network element (NE) type. The
+names and descriptions should be provided in both the Chinese and English NE
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 102
+interface document. Different versions of the same NE type must be backward
+compatible. Exception codes in use cannot be assigned to other exceptions.
+Table 6-4 Exception codes returned by an NE (0x00–0x8F are for common
+exception codes)
+Code Name Description
+0x01 Illegal function The function code received in the query is not an
+allowable action for the server (or slave node).
+This may be because the function code is only
+applicable to newer devices, and was not
+implemented in the unit selected. It could also
+indicate that the server (or slave node) is in the
+wrong state to process a request of this type, for
+example because it is not configured and is being
+asked to return register values.
+0x02 Illegal data
+address
+The data address received in the query is not an
+allowable address for the server. More
+specifically, the combination of reference number
+and transfer length is invalid. For a controller
+with 100 registers, the PDU addresses the first
+register as 0, and the last one as 99. If a request
+is submitted with a starting register address of
+96 and a quantity of registers of 4, then this
+request will successfully operate (address-wise at
+least) on registers 96, 97, 98, 99. If a request is
+submitted with a starting register address of 96
+and a quantity of registers of 5, then this request
+will fail with Exception Code 0x02 "Illegal Data
+Address" since it attempts to operate on registers
+96, 97, 98, 99 and 100, and there is no register
+with address 100.
+0x03 Illegal data
+value
+The value contained in the query data field is not
+an allowable value for the server (or slave). The
+value indicates a fault in the structure of the
+remainder of a complex request, such as an
+incorrectly implied length. It specifically does not
+mean that a data item submitted for storage in a
+register has a value outside the expectation of
+the application program since the Modbus
+protocol is unaware of the significance of any
+particular value of any particular register.
+0x04 Slave node
+failure
+An error occurred while the server was
+attempting to perform the requested action.
+0x06 Slave device
+busy
+The server cannot accept a Modbus request PDU.
+A client application determines whether and
+when to resend the request.
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 103
+Code Name Description
+0x80 No permission An operation is not allowed because of a
+permission authentication failure or permission
+expiration.
+ 
+6.3.3 Reading Registers (0x03)
+6.3.3.1 Frame Format of a Request from a Master Node
+Data Field Length (Byte) Description
+Function code 1 0x03
+Register start address 2 0x0000–0xFFFF
+Number of registers 2 1–125
+ 
+6.3.3.2 Frame Format of a Normal Response from a Slave Node
+Data Field Length (Byte) Description
+Function code 1 0x03
+Number of bytes 1 2 x N
+Register value 2 x N N/A
+ 
+N refers to the number of registers.
+6.3.3.3 Frame Format of an Abnormal Response from a Slave Node
+Data Field Length (Byte) Description
+Function code 1 0x83
+Exception code 1 See 6.3.2 .
+ 
+6.3.3.4 Examples
+This section takes the Modbus-TCP communications frames as an example. The
+differences between Modbus-RTU and Modbus-TCP lie in the additional address
+field and the CRC. Pay attention to the differences when using the Modbus-RTU
+frames. This also works for the follow-up examples.
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 104
+The master node sends a query request (register address: 32306/0X7E32) to the
+slave node (logical device ID: 00).
+Description Frame Data
+MBAP header Protocol identifier 00
+01
+Protocol type 00
+00
+Data length 00
+06
+Logical device ID 00
+Function code 03
+Data Register address 7E
+32
+Number of registers 00
+02
+ 
+Normal response from the slave node
+Description Frame Data
+MBAP header Protocol identifier 00
+01
+Protocol type 00
+00
+Data length 00
+07
+Logical device ID 00
+Function code 03
+Data Number of bytes 04
+Register data 00
+00
+00
+01
+ 
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 105
+Abnormal response from the slave node
+Description Frame data
+MBAP header Protocol identifier 00
+01
+Protocol type 00
+00
+Data length 00
+03
+Logical device ID 00
+Function code 83
+Data Error code 03
+ 
+6.3.4 Writing a Single Register (0x06)
+6.3.4.1 Frame Format of a Request from a Master Node
+Data Field Length (Byte) Description
+Function code 1 0x06
+Register address 2 0x0000–0xFFFF
+Register value 2 0x0000–0xFFFF
+ 
+6.3.4.2 Frame Format of a Normal Response from a Slave Node
+Data Field Length (Byte) Description
+Function code 1 0x06
+Register address 2 0x0000–0xFFFF
+Register value 2 0x0000–0xFFFF
+ 
+6.3.4.3 Frame Format of an Abnormal Response from a Slave Node
+Data Field Length (Byte) Description
+Function code 1 0x86
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 106
+Data Field Length (Byte) Description
+Exception code 1 See 6.3.2 .
+ 
+6.3.4.4 Examples
+A master node sends a command (register address: 40200/0X9D08) to a slave
+node (address: 00).
+Description Frame data
+MBAP header Protocol identifier 00
+01
+Protocol type 00
+00
+Data length 00
+06
+Logical device ID 00
+Function code 06
+Data Register address 9D
+08
+Register data 00
+00
+ 
+Normal response from the slave node
+Description Frame Data
+MBAP header Protocol identifier 00
+01
+Protocol type 00
+00
+Data length 00
+06
+Logical device ID 00
+Function code 06
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 107
+Description Frame Data
+Data Register address 9D
+08
+Register data 00
+00
+ 
+Abnormal response from the slave node
+Description Frame Data
+MBAP header Protocol identifier 00
+01
+Protocol type 00
+00
+Data length 00
+03
+Logical device ID 00
+Function code 86
+Data Error code 04
+ 
+6.3.5 Writing Multiple Registers (0x10)
+6.3.5.1 Frame Format of a Request from a Master Node
+Data Field Length (Byte) Description
+Function code 1 0x10
+Register start address 2 0x0000–0xFFFF
+Number of registers 2 0x0000–0x007b
+Number of bytes 1 2 x N
+Register value 2 x N Value
+ 
+N refers to the number of registers.
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 108
+6.3.5.2 Frame Format of a Normal Response from a Slave Node
+Data Field Length (Byte) Description
+Function code 1 0x10
+Register address 2 0x0000–0xFFFF
+Number of registers 2 0x0000–0x007b
+ 
+6.3.5.3 Frame Format of an Abnormal Response from a Slave Node
+Data Field Length (Byte) Description
+Function code 1 0x90
+Exception code 1 See 6.3.2 .
+ 
+6.3.5.4 Examples
+The master node sets the register address 40118/0X9CB6 to 2 and the register
+address 40119/0X9CB7 to 50 for the slave node (address: 00). The request frame
+format is as follows.
+Description Frame Data
+MBAP header Protocol identifier 00
+01
+Protocol type 00
+00
+Data length 00
+0B
+Logical device ID 00
+Function code 10
+Data Register address 9C
+B6
+Number of registers 00
+02
+Number of bytes 04
+Register data 00
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 109
+Description Frame Data
+02
+00
+32
+ 
+Normal response from the slave node
+Description Frame Data
+MBAP header Protocol identifier 00
+01
+Protocol type 00
+00
+Data length 00
+06
+Logical device ID 00
+Function code 10
+Data Register address 9C
+B6
+Number of registers 00
+02
+ 
+Abnormal response from the slave node
+Description Frame Data
+MBAP header Protocol identifier 00
+01
+Protocol type 00
+00
+Data length 00
+03
+Logical device ID 00
+Function code 90
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 110
+Description Frame Data
+Data Error code 04
+ 
+6.3.6 Reading Device Identifiers (0x2B)
+This command code allows reading identifiers and added packets that are relevant
+to the physical and function description of the remote devices.
+Simulate the interface of the read device identifier as an address space. This
+address space consists of a set of addressable data elements. The data elements
+are objects to be read, and the object IDs determine these data elements.
+A data element consists of three objects:
+1. Basic device identifier: All objects of this type are mandatory, such as the
+vendor name, product code, and revision version.
+2. Normal device identifier: Except basic data objects, the device provides
+additional and optional identifiers and data object description. Define all
+types of objects according to definitions in the standard, but the execution of
+this type of objects is optional.
+3. Extended device identifier: In addition to the normal data objects, the device
+provides additional and optional identifiers and special data object
+description. All the data is related to the device.
+Table 6-5 Reading device identifiers
+Object ID Object Name
+or
+Description
+Type Mandatory
+or Optional
+(M/O)
+Type
+0x00 Manufacturer
+name
+ASCII
+character
+string
+M Basic
+0x01 Product code ASCII
+character
+string
+M
+0x02 Main revision
+version
+ASCII
+character
+string
+M
+0x03–0x7F - - - Normal
+0x80–0xFF - - - Expansion
+ 
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 111
+6.3.6.1 Command for Querying Device Identifiers
+Table 6-6 Request frame format
+Data Field Length (Byte) Description
+Function code 1 0x2B
+MEI type 1 0x0E
+ReadDevId code 1 01
+Object ID 1 0x00
+ 
+Table 6-7 Frame format for a normal response
+Data Field Length (Byte) Description
+Function code 1 0x2B
+MEI type 1 0x0E
+ReadDevId code 1 01
+Consistency level 1 01
+More 1 -
+Next object ID 1 -
+Number of objects 1 -
+Object list First
+object
+Object
+ID
+1 0x00
+Object
+length
+1 N
+Object
+value
+N -
+... ... ... ...
+ 
+Table 6-8 Object list
+Object ID Object Name or
+Description
+Description Type
+0x00 Manufacturer
+name
+HUAWEI Basic
+0x01 Product code SUN2000
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 112
+Object ID Object Name or
+Description
+Description Type
+0x02 Main revision
+version
+ASCII character
+string, software
+version
+ 
+Table 6-9 Frame format for an abnormal response
+Data Field Length (Byte) Description
+Function code 1 0xAB
+Exception code 1 See 6.3.2 .
+ 
+6.3.6.2 Command for Querying a Device List
+Table 6-10 Request frame format
+Data Field Length (Byte) Description
+Function code 1 0x2B
+MEI type 1 0x0E
+ReadDevId code 1 03
+Object ID 1 byte 0x87
+ 
+Table 6-11 Frame format for a normal response
+Data Field Length (Byte) Description
+Function code 1 0x2B
+MEI type 1 0x0E
+ReadDevId code 1 03
+Consistency level 1 03
+More 1 -
+Next object ID 1 -
+Number of objects 1 -
+Object list First object Object
+ID
+1 0x87
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 113
+Data Field Length (Byte) Description
+Object
+length
+1 N
+Object
+value
+N -
+... ... ... ...
+ 
+Table 6-12 Object list
+Object ID Object Name Type Description
+0x80–0x86 Reserved -- Returns a null
+object with a
+length of 0.
+0x87 Number of
+devices
+int Returns the
+number of devices
+connected to the
+RS485 address.
+0x88 Description about
+the first device
+ASCII character
+string
+See the device
+description
+definitions.
+Returns only
+description about
+the first device if
+a NE allows only
+one device to be
+connected to each
+RS485 address.
+0x8A Description about
+the second device
+- -
+- - - -
+0xFF Description about
+the 120th device
+- -
+ 
+6.3.6.3 Device Description Definition
+Each device description consists of all "attribute=value" character strings.
+"Attribute ID=%s;attribute ID=%s;... attribute ID=%s"
+For example: "1=SUN2000MA-XXKTL;2=V100R001C00SPC100;3=P1.0-
+D5.0;4=123232323;5=1;6=1.1"
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 114
+Table 6-13 Attribute definition
+Attribut
+e ID
+Name Type Description
+1 Device model ASCII
+character
+string
+SUN2000
+2 Device software
+version
+ASCII
+character
+string
+-
+3 Port protocol
+version
+ASCII
+character
+string
+See the interface protocol version
+definitions.
+4 ESN ASCII
+character
+string
+-
+5 Device ID int 0, 1, 2, 3...(assigned by NEs; 0
+indicates the master device into
+which the Modbus card is
+inserted)
+6 Feature version ASCII
+character
+string
+-
+ 
+Table 6-14 Frame format for an abnormal response
+Data Field Length (Byte) Description
+Function code 1 0xAB
+Exception code 1 See 6.3.2 .
+ 
+6.3.7 Huawei-defined Functions (0x41)
+6.3.7.1 Uploading Files
+Uploading files means uploading them by stream data from a slave node to a
+master node. The following figure shows the file uploading process.
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 115
+Figure 6-7 File uploading process
+6.3.7.1.1 Starting the Upload
+Frame format of a request from a master node
+Table 6-15 PDU data field of the request frame for starting upload (0x05)
+PDU
+Data
+Field
+Length
+(Byte)
+Description
+Function
+code
+1 0x41
+Sub-
+function
+code
+1 0x05
+Data
+length
+1 1 + N
+File type 1 Unique ID of a file
+Customiz
+ed data
+N -
+ 
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 116
+Table 6-16 PDU data field of the response frame for starting upload (0x05)
+Data
+Field
+Length
+(Byte)
+Description
+Function
+code
+1 0x41
+Sub-
+function
+code
+1 0x05
+Data
+length
+1 6 + N
+File type 1 Unique ID of a file
+File
+length
+4 -
+Data
+frame
+length
+1 -
+Customiz
+ed data
+N -
+ 
+Table 6-17 PDU data field in the abnormal response frame of the slave node
+PDU Data Field Length
+(Byte)
+Description
+Error code 1 0xC1
+Exception code 1 See 6.3.2 .
+ 
+If the exception code is 0x06, resend the request after 10 seconds. A request can
+be resent for no more than six times.
+6.3.7.1.2 Uploading Data
+Table 6-18 Request frame for uploading data (0x06)
+PDU Data Field Length
+(Byte)
+Description
+Function code 1 0x41
+Sub-function code 1 0x06
+Data length 1 3
+File type 1 Unique ID of a file
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 117
+PDU Data Field Length
+(Byte)
+Description
+Frame No. 2 0x0000–0xFFFF
+ 
+Table 6-19 Response frame for uploading data (0x06)
+PDU Data Field Length
+(Byte)
+Description
+Function code 1 0x41
+Sub-function code 1 0x06
+Data length 1 3 + N
+File type 1 -
+Frame No. 2 0x0000–0xFFFF
+Frame data N -
+ 
+Table 6-20 Abnormal response frame for uploading data
+PDU Data Field Length
+(Byte)
+Description
+Error code 1 0xC1
+Exception code 1 See 6.3.2 .
+ 
+6.3.7.1.3 Completing the Data Upload
+Table 6-21 Request frame for completing the data upload
+PDU Data Field Length
+(Byte)
+Description
+Function code 1 0x41
+Sub-function code 1 0x0c
+Data length 1 1
+File type 1 -
+ 
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 118
+Table 6-22 Response frame for completing the data upload
+PDU Data Field Length
+(Byte)
+Description
+Function code 1 0x41
+Sub-function code 1 0x0c
+Data length 1 3
+File type 1 -
+File CRC 2 -
+ 
+Table 6-23 Abnormal response frame for completing the data upload
+Data Field Length
+(Byte)
+Description
+Error code 1 0xC1
+Exception code 1 See 6.3.2 .
+ 
+6.3.7.1.4 Timeout Processing
+Table 6-24 Processing specifications of sub-process timeout
+Name Restraints
+Response timeout period for starting an
+upload
+10s
+Response timeout period for uploading data 10s
+Number of times of resending a data upload
+command
+6
+Response timeout period for completing a
+data upload
+10s
+Solar Inverter Modbus Interface Definitions 6 Overview of the Communications Protocol
+Issue 04 (2023-01-10) Copyright © Huawei Technologies Co., Ltd. 119

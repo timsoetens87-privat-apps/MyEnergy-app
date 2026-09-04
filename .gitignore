@@ -1,0 +1,27 @@
+# Virtualenvs
+.venv/
+venv/
+venv39/
+
+# Runtime data (databases, corrupt/unhealthy snapshots, backups)
+data/
+db_restore_backup_*/
+
+# Logs and one-off run artifacts
+nohup.out
+*.log
+check_solar_stdout.log
+check_solar_stderr.log
+modbus_out.txt
+modbus_err.txt
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Editor
+.vscode/
