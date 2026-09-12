@@ -3676,14 +3676,6 @@
                 const roundedYMin = Math.floor((dailyYMin - yPadding) / roundStep) * roundStep;
                 const roundedYMax = Math.ceil((dailyYMax + yPadding) / roundStep) * roundStep;
 
-                if (minuteChart) {
-                    minuteChart.destroy();
-                }
-
-                if (minuteSocChart) {
-                    minuteSocChart.destroy();
-                }
-
                 const chartDatasets = [{
                     label: 'Power (kW)',
                     data: allPowerPoints,
@@ -3762,6 +3754,13 @@
                     });
                 }
 
+                if (minuteChart) {
+                    minuteChart.data.datasets = chartDatasets;
+                    minuteChart.options.scales.y.min = roundedYMin;
+                    minuteChart.options.scales.y.max = roundedYMax;
+                    minuteChart.options.plugins.dailyPeakBackground.dayIso = dateStr;
+                    minuteChart.update();
+                } else {
                 minuteChart = new Chart(minuteCtx, {
                     type: 'line',
                     plugins: [dailyPeakBackgroundPlugin],
@@ -3871,8 +3870,13 @@
                         }
                     }
                 });
+                }
 
                 if (minuteSocCtx) {
+                    if (minuteSocChart) {
+                        minuteSocChart.data.datasets[0].data = batterySocPoints;
+                        minuteSocChart.update();
+                    } else {
                     minuteSocChart = new Chart(minuteSocCtx, {
                         type: 'line',
                         data: {
@@ -3961,6 +3965,7 @@
                             }
                         }
                     });
+                    }
                 }
 
                 // Populate the daily summary table using authoritative daily_breakdown when available

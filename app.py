@@ -2747,24 +2747,38 @@ def get_solar_5min_series(target_date):
     raw_conn = None
 
     try:
-        # Only rebuild rollups when the raw DB actually has data for this day,
-        # so loading historical days (no raw data) is a fast avg-DB-only read.
-        _raw_conn_check = open_solar_history_connection(kind='raw')
-        _has_raw_data = False
-        if _raw_conn_check is not None:
-            try:
-                _c = _raw_conn_check.cursor()
-                _c.execute(
-                    'SELECT 1 FROM solar_raw_data WHERE timestamp >= ? AND timestamp < ? LIMIT 1',
-                    (day_start.timestamp(), day_end.timestamp()),
-                )
-                _has_raw_data = _c.fetchone() is not None
-            except Exception:
-                pass
-            finally:
-                _raw_conn_check.close()
-        if _has_raw_data:
-            rebuild_solar_rollups_from_history(day_start.timestamp(), day_end.timestamp())
+        # Only rebuild rollups for "today". Raw solar data is retained for 30
+        # days (not just today), so a raw-data-exists check alone would
+        # trigger a full-day rebuild scan on the *first* visit to every
+        # historical day too -- and historical days' rollups are already kept
+        # correct incrementally by the live collector's per-sample persist,
+        # so re-scanning their raw history on read is pure redundant cost.
+        _is_today = target_date.date() == datetime.now().date()
+        if _is_today:
+            _raw_conn_check = open_solar_history_connection(kind='raw')
+            _has_raw_data = False
+            if _raw_conn_check is not None:
+                try:
+                    _c = _raw_conn_check.cursor()
+                    _c.execute(
+                        'SELECT 1 FROM solar_raw_data WHERE timestamp >= ? AND timestamp < ? LIMIT 1',
+                        (day_start.timestamp(), day_end.timestamp()),
+                    )
+                    _has_raw_data = _c.fetchone() is not None
+                except Exception:
+                    pass
+                finally:
+                    _raw_conn_check.close()
+            if _has_raw_data:
+                # The rebuild is write-heavy (write lock + 3 connections); throttle
+                # it to at most once per minute per day instead of running it on
+                # every cache-miss request for "today".
+                _day_key = day_start.strftime('%Y-%m-%d')
+                _now_ts = time.time()
+                _rebuild_entry = _solar_daily_rollup_rebuild_cache.get(_day_key)
+                if not _rebuild_entry or _now_ts >= _rebuild_entry.get('expires', 0.0):
+                    rebuild_solar_rollups_from_history(day_start.timestamp(), day_end.timestamp())
+                    _solar_daily_rollup_rebuild_cache[_day_key] = {'expires': _now_ts + 60.0}
         avg_conn = open_solar_history_connection(kind='avg')
         raw_conn = open_solar_history_connection(kind='raw')
         if avg_conn is None and raw_conn is None:
@@ -2775,6 +2789,7 @@ def get_solar_5min_series(target_date):
         day_start_str = datetime.fromtimestamp(day_start.timestamp(), timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         day_end_str = datetime.fromtimestamp(day_end.timestamp(), timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         series_map = {}
+        avg_bucket_count = 0
 
         if avg_cursor is not None:
             avg_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='solar_hourly_imports'")
@@ -2811,6 +2826,7 @@ def get_solar_5min_series(target_date):
                 (day_start_str, day_end_str),
             )
             rows = avg_cursor.fetchall()
+            avg_bucket_count = len(rows)
             for row in rows:
                 point_ts = _normalize_bucket_timestamp_ms(row['bucket_ts'], bucket_seconds=300)
                 if point_ts is None:
@@ -2821,8 +2837,18 @@ def get_solar_5min_series(target_date):
                     'max_power_w': float(row['max_power_w']) if row['max_power_w'] is not None else None,
                 }
 
+        # The raw-table rescan below re-aggregates the whole day directly from
+        # solar_raw_data -- necessary for "today" (still accumulating, and
+        # more current than the rollup table) but pure redundant cost for a
+        # historical day whose five_minute_averages coverage is already
+        # near-complete (288 buckets/day; a small margin allows for brief
+        # collector restarts without falling back to a full raw rescan).
+        # Skip it only when it would add nothing; still run it when avg
+        # coverage is thin, since that's exactly the gap-recovery case this
+        # fallback exists for.
+        _avg_is_complete = avg_bucket_count >= 280
         realtime_rows = []
-        if raw_cursor is not None:
+        if raw_cursor is not None and (_is_today or not _avg_is_complete):
             raw_cursor.execute(
                 '''SELECT CAST(timestamp / 300 AS INTEGER) * 300 AS bucket_ts,
                           AVG(power_w) AS avg_power_w,
@@ -2911,6 +2937,8 @@ def get_battery_5min_series(target_date):
         day_start_str = datetime.fromtimestamp(day_start.timestamp(), timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         day_end_str = datetime.fromtimestamp(day_end.timestamp(), timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         series_map = {}
+        avg_bucket_count = 0
+        _is_today = target_date.date() == datetime.now().date()
 
         avg_has_soc = False
         raw_has_soc = False
@@ -2950,7 +2978,9 @@ def get_battery_5min_series(target_date):
                    ORDER BY bucket_start''',
                 (day_start_str, day_end_str),
             )
-            for row in avg_cursor.fetchall():
+            _avg_rows = avg_cursor.fetchall()
+            avg_bucket_count = len(_avg_rows)
+            for row in _avg_rows:
                 point_ts = _normalize_bucket_timestamp_ms(row['bucket_ts'], bucket_seconds=300)
                 if point_ts is None:
                     continue
@@ -2961,8 +2991,15 @@ def get_battery_5min_series(target_date):
                     'avg_soc_pct': float(row['avg_soc_pct']) if row['avg_soc_pct'] is not None else None,
                 }
 
+        # Skip the full-day raw rescan when the averages table is already
+        # near-complete for a historical day (288 buckets/day, small margin
+        # for brief collector gaps) -- battery_2sec.db is large, so this scan
+        # is expensive and, once a day is fully rolled up, redundant. Still
+        # always rescan for "today" (still accumulating) and for any day with
+        # thin avg coverage (real gap-recovery case).
+        _avg_is_complete = avg_bucket_count >= 280
         realtime_rows = []
-        if raw_cursor is not None:
+        if raw_cursor is not None and (_is_today or not _avg_is_complete):
             raw_cursor.execute(
                 f'''SELECT CAST(timestamp / 300 AS INTEGER) * 300 AS bucket_ts,
                           AVG(consumption_w) AS avg_consumption_w,
@@ -3019,9 +3056,17 @@ def get_solar_daily_totals(start_date=None, end_date=None):
     avg_conn = None
     totals_conn = None
 
+    # This is called on every "today" /minute_data cache miss just to read a
+    # day's solar yield; only pay for the daily_totals upsert (write lock +
+    # commit) at most once per minute per requested range, not on every read.
+    persist_key = (str(start_date), str(end_date))
+    now_ts = time.time()
+    persist_entry = _solar_daily_totals_persist_cache.get(persist_key)
+    should_persist = not persist_entry or now_ts >= persist_entry.get('expires', 0.0)
+
     try:
         avg_conn = open_solar_history_connection(kind='avg')
-        totals_conn = open_solar_history_connection(kind='totals', write=True)
+        totals_conn = open_solar_history_connection(kind='totals', write=should_persist)
         totals_conn = _reuse_if_same_sqlite_file(avg_conn, totals_conn)
 
         if avg_conn is not None:
@@ -3059,7 +3104,7 @@ def get_solar_daily_totals(start_date=None, end_date=None):
                     float(row['total_energy_kwh']) if row['total_energy_kwh'] is not None else None
                 )
 
-            if totals_conn is not None and avg_rows:
+            if totals_conn is not None and avg_rows and should_persist:
                 totals_cursor = totals_conn.cursor()
                 ensure_solar_history_schema(totals_cursor)
                 for row in avg_rows:
@@ -3078,6 +3123,7 @@ def get_solar_daily_totals(start_date=None, end_date=None):
                         updated_at=time.time(),
                     )
                 totals_conn.commit()
+                _solar_daily_totals_persist_cache[persist_key] = {'expires': now_ts + 60.0}
     except Exception as e:
         print(f"Solar daily totals aggregation failed: {e}")
     finally:
@@ -4754,6 +4800,24 @@ def get_live_daily_breakdown(target_date):
     day_start = day_start_dt.timestamp()
     day_end = day_end_dt.timestamp()
 
+    def count_day_samples(db_path):
+        conn_local = None
+        try:
+            conn_local = get_db_connection(db_path)
+            c_local = conn_local.cursor()
+            c_local.execute(
+                'SELECT COUNT(*) FROM energy_data WHERE timestamp >= ? AND timestamp < ?',
+                (day_start, day_end),
+            )
+            row = c_local.fetchone()
+            return int(row[0]) if row and row[0] is not None else 0
+        except Exception as e:
+            print(f'Live daily breakdown count read failed ({db_path}): {e}')
+            return 0
+        finally:
+            if conn_local:
+                conn_local.close()
+
     def load_day_samples(db_path):
         conn_local = None
         try:
@@ -4778,9 +4842,13 @@ def get_live_daily_breakdown(target_date):
             if conn_local:
                 conn_local.close()
 
-    raw_samples = load_day_samples(DB_FILE_RAW)
-    backup_samples = load_day_samples(DB_FILE_BACKUP)
-    samples = backup_samples if len(backup_samples) > len(raw_samples) else raw_samples
+    # Pick whichever source has fuller day coverage using a cheap COUNT(*)
+    # first, so we only pay for one full-column, full-day fetch instead of
+    # transferring both raw and backup tables over the network share just to
+    # compare lengths.
+    raw_count = count_day_samples(DB_FILE_RAW)
+    backup_count = count_day_samples(DB_FILE_BACKUP)
+    samples = load_day_samples(DB_FILE_BACKUP if backup_count > raw_count else DB_FILE_RAW)
 
     if len(samples) < 2:
         return None
@@ -7819,10 +7887,16 @@ def get_all_data():
 _avg_profile_cache = {'key': None, 'data': None, 'day_count': 0, 'expires': 0.0}
 _monthly_recover_check_cache = {}
 _solar_monthly_rebuild_cache = {}
+_solar_daily_rollup_rebuild_cache = {}
+_solar_daily_totals_persist_cache = {}
 _weekly_data_cache = {}
 _weekly_data_cache_lock = threading.Lock()
 _minute_data_cache = {}
 _minute_data_cache_lock = threading.Lock()
+# Must stay >= the frontend's 30s poll interval (see templates/index.html
+# setInterval near the minute-tab refresh) or every poll is a guaranteed
+# cache miss and reruns the full solar/battery/live-breakdown query chain.
+MINUTE_DATA_TODAY_CACHE_TTL_SECONDS = 25.0
 _yearly_data_cache = {}
 _yearly_data_cache_lock = threading.Lock()
 _lifetime_data_cache = {'expires': 0.0, 'payload': None}
@@ -7877,7 +7951,7 @@ def get_minute_data():
     is_today = target_date.date() == datetime.now().date()
     cache_key = target_date.strftime('%Y-%m-%d')
     now_ts = time.time()
-    cache_ttl_seconds = 8.0 if is_today else 1800.0
+    cache_ttl_seconds = MINUTE_DATA_TODAY_CACHE_TTL_SECONDS if is_today else 1800.0
 
     with _minute_data_cache_lock:
         cache_entry = _minute_data_cache.get(cache_key)
@@ -9212,4 +9286,13 @@ def get_sun2000_health():
 
 
 if __name__ == "__main__":
-    app.run(host=SERVER_HOST, port=SERVER_PORT, debug=DEBUG_MODE)
+    if DEBUG_MODE:
+        # Flask's dev server handles one request at a time by default, which
+        # is fine for local debugging but serializes every request behind
+        # whatever else is running (background collector threads, other open
+        # tabs) in production.
+        app.run(host=SERVER_HOST, port=SERVER_PORT, debug=True)
+    else:
+        from waitress import serve
+        print(f"✓ Serving with waitress on {SERVER_HOST}:{SERVER_PORT} (threads=8)")
+        serve(app, host=SERVER_HOST, port=SERVER_PORT, threads=8)
