@@ -124,6 +124,24 @@ class SyncedDatastreamTests(unittest.TestCase):
         self.assertEqual(int(datetime(2026, 4, 18, 10, 0, 0).timestamp() * 1000), int(series[0]['timestamp']))
         self.assertAlmostEqual(900.0, float(series[0]['avg_power_w']), places=2)
 
+    def test_solar_daily_totals_fall_back_to_today_raw_samples(self):
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        conn = sqlite3.connect(self.temp_solar_db.name)
+        conn.execute(
+            'INSERT INTO solar_raw_data (timestamp, power_w, unit_id, source, created_at) VALUES (?, ?, ?, ?, ?)',
+            (today.timestamp() + 60, 600.0, 1, 'test', today.timestamp() + 60),
+        )
+        conn.commit()
+        conn.close()
+
+        totals = self.app_module.get_solar_daily_totals(
+            today.strftime('%Y-%m-%d'),
+            (today + timedelta(days=1)).strftime('%Y-%m-%d'),
+        )
+
+        self.assertIn(today.strftime('%Y-%m-%d'), totals)
+        self.assertAlmostEqual(0.05, float(totals[today.strftime('%Y-%m-%d')]), places=4)
+
     def test_rebuild_solar_rollups_populates_five_minute_table(self):
         rebuilt = self.app_module.rebuild_solar_rollups_from_history(
             start_ts=datetime(2026, 4, 18, 10, 0, 0).timestamp(),
@@ -144,6 +162,7 @@ class SyncedDatastreamTests(unittest.TestCase):
         self.assertEqual(2, int(row[2]))
 
     def test_persist_solar_sample_handles_legacy_realtime_required_columns(self):
+        self.app_module.PERSIST_REALTIME_SAMPLES = True
         conn = sqlite3.connect(self.temp_solar_db.name)
         cur = conn.cursor()
         cur.execute('DROP TABLE solar_realtime')

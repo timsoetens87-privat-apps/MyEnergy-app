@@ -104,8 +104,8 @@ SOLAR_DB_FILES = {
 }
 DATA_RETENTION_DAYS = 30  # Keep raw data for 30 days, then delete
 IS_NETWORK_DATA_DIR = str(DATA_DIR).startswith('\\\\')
-SAVE_INTERVAL = max(2, int(float(os.getenv('P1_SAVE_INTERVAL_SECONDS', '2'))))
-BACKUP_INTERVAL_SECONDS = max(300 if IS_NETWORK_DATA_DIR else 120, int(float(os.getenv('P1_BACKUP_INTERVAL_SECONDS', '300' if IS_NETWORK_DATA_DIR else '180'))))
+SAVE_INTERVAL = max(2, int(float(os.getenv('P1_SAVE_INTERVAL_SECONDS', '10'))))
+BACKUP_INTERVAL_SECONDS = max(300 if IS_NETWORK_DATA_DIR else 120, int(float(os.getenv('P1_BACKUP_INTERVAL_SECONDS', '900'))))
 DB_BUSY_TIMEOUT_MS = 3000
 DB_WRITE_RETRIES = 5
 DB_CONNECT_RETRIES = 5
@@ -168,9 +168,13 @@ AVG_PROFILE_WINDOW_DAYS = 365
 SOLAR_SAMPLE_STALE_AFTER_SECONDS = 60.0
 SOLAR_LIVE_REFRESH_SECONDS = 30.0
 SOLAR_POINT_MAX_AGE_SECONDS = 300.0
-SOLAR_PERSIST_INTERVAL_SECONDS = max(2.0, float(os.getenv('SOLAR_PERSIST_INTERVAL_SECONDS', '2')))
+SERIES_CACHE_TTL_SECONDS = max(15.0, float(os.getenv('SERIES_CACHE_TTL_SECONDS', '30')))
+SOLAR_PERSIST_INTERVAL_SECONDS = max(2.0, float(os.getenv('SOLAR_PERSIST_INTERVAL_SECONDS', '10')))
 MARSTEK_CACHE_TTL_SECONDS = max(2.0, float(os.getenv('MARSTEK_CACHE_TTL_SECONDS', '2')))
-BATTERY_PERSIST_INTERVAL_SECONDS = max(2.0, float(os.getenv('MARSTEK_PERSIST_INTERVAL_SECONDS', '2')))
+BATTERY_PERSIST_INTERVAL_SECONDS = max(2.0, float(os.getenv('MARSTEK_PERSIST_INTERVAL_SECONDS', '10')))
+SOLAR_ROLLUP_INTERVAL_SECONDS = max(60.0, float(os.getenv('SOLAR_ROLLUP_INTERVAL_SECONDS', '60')))
+BATTERY_ROLLUP_INTERVAL_SECONDS = max(60.0, float(os.getenv('BATTERY_ROLLUP_INTERVAL_SECONDS', '60')))
+PERSIST_REALTIME_SAMPLES = os.getenv('PERSIST_REALTIME_SAMPLES', 'false').lower() in ('1', 'true', 'yes', 'on')
 MARSTEK_STABILITY_WINDOW = max(1, int(float(os.getenv('MARSTEK_STABILITY_WINDOW', '3'))))
 LIVE_DENSIFY_POWER_HOLD_SECONDS = max(10.0, float(os.getenv('LIVE_DENSIFY_POWER_HOLD_SECONDS', '20')))
 LIVE_DENSIFY_SOLAR_HOLD_SECONDS = max(10.0, float(os.getenv('LIVE_DENSIFY_SOLAR_HOLD_SECONDS', '20')))
@@ -189,14 +193,19 @@ _solar_latest_cache = {
 _solar_fetch_lock = threading.Lock()
 _last_solar_fetch_ts = 0.0
 _last_solar_persist_ts = 0.0
+_last_solar_rollup_ts = 0.0
 _solar_runtime_state = {'timestamp': None, 'power_w': None}
 _solar_runtime_series = []
 _solar_history_write_lock = threading.RLock()
 _solar_schema_checked_paths = set()
 _solar_table_schema_cache = {}
+_solar_series_cache = {}
+_battery_series_cache = {}
+_series_cache_lock = threading.Lock()
 _marstek_status_cache = {'expires': 0.0, 'data': None}
 _marstek_fetch_lock = threading.Lock()
 _last_marstek_persist_ts = 0.0
+_last_battery_rollup_ts = 0.0
 _marstek_runtime_state = {'timestamp': None, 'power_w': None, 'consumption_w': None, 'soc_pct': None}
 _marstek_runtime_series = []
 _marstek_consumption_window = deque(maxlen=MARSTEK_STABILITY_WINDOW)
@@ -525,6 +534,8 @@ def _upsert_solar_realtime_sample(cursor, timestamp_text, power_w, unit_id=None,
 
 def _persist_solar_sample_to_history(sample, _allow_recovery=True):
     """Persist one robust solar sample and update rollup totals."""
+    global _last_solar_rollup_ts
+
     if not sample:
         return False
 
@@ -556,20 +567,11 @@ def _persist_solar_sample_to_history(sample, _allow_recovery=True):
     totals_conn = None
     try:
         raw_conn = open_solar_history_connection(kind='raw', write=True)
-        avg_conn = open_solar_history_connection(kind='avg', write=True)
-        totals_conn = open_solar_history_connection(kind='totals', write=True)
-        avg_conn = _reuse_if_same_sqlite_file(raw_conn, avg_conn)
-        totals_conn = _reuse_if_same_sqlite_file(avg_conn, totals_conn)
-        totals_conn = _reuse_if_same_sqlite_file(raw_conn, totals_conn)
-        if raw_conn is None or avg_conn is None or totals_conn is None:
+        if raw_conn is None:
             return False
 
         raw_cursor = raw_conn.cursor()
-        avg_cursor = avg_conn.cursor()
-        totals_cursor = totals_conn.cursor()
         ensure_solar_history_schema(raw_cursor)
-        ensure_solar_history_schema(avg_cursor)
-        ensure_solar_history_schema(totals_cursor)
 
         unit_id = sample.get('unit_id')
         source = sample.get('source', 'live-modbus')
@@ -582,16 +584,34 @@ def _persist_solar_sample_to_history(sample, _allow_recovery=True):
             source=source,
             created_at=created_at,
         )
-        _upsert_solar_realtime_sample(
-            raw_cursor,
-            timestamp_text,
-            power_w,
-            unit_id=unit_id,
-            source=source,
-            status=sample.get('status', 'Running'),
-            created_at=created_at,
-        )
+        if PERSIST_REALTIME_SAMPLES:
+            _upsert_solar_realtime_sample(
+                raw_cursor,
+                timestamp_text,
+                power_w,
+                unit_id=unit_id,
+                source=source,
+                status=sample.get('status', 'Running'),
+                created_at=created_at,
+            )
         raw_conn.commit()
+
+        rollup_now = time.time()
+        if rollup_now - _last_solar_rollup_ts < SOLAR_ROLLUP_INTERVAL_SECONDS:
+            return True
+
+        avg_conn = open_solar_history_connection(kind='avg', write=True)
+        totals_conn = open_solar_history_connection(kind='totals', write=True)
+        avg_conn = _reuse_if_same_sqlite_file(raw_conn, avg_conn)
+        totals_conn = _reuse_if_same_sqlite_file(avg_conn, totals_conn)
+        totals_conn = _reuse_if_same_sqlite_file(raw_conn, totals_conn)
+        if avg_conn is None or totals_conn is None:
+            return True
+
+        avg_cursor = avg_conn.cursor()
+        totals_cursor = totals_conn.cursor()
+        ensure_solar_history_schema(avg_cursor)
+        ensure_solar_history_schema(totals_cursor)
 
         bucket_end_epoch = bucket_epoch + 300
         raw_cursor.execute(
@@ -679,6 +699,7 @@ def _persist_solar_sample_to_history(sample, _allow_recovery=True):
         )
 
         totals_conn.commit()
+        _last_solar_rollup_ts = rollup_now
         return True
     except Exception as e:
         if _allow_recovery and _is_sqlite_storage_error(e):
@@ -1355,12 +1376,28 @@ def activate_local_raw_db_fallback(reason=''):
             for source_path in (DB_FILE_RAW, DB_FILE_BACKUP):
                 if not source_path or not os.path.exists(source_path):
                     continue
+                source_ok, source_detail = check_db_integrity(source_path)
+                if not source_ok:
+                    print(f'Raw DB fallback skipped invalid source {source_path}: {source_detail}')
+                    continue
                 try:
                     shutil.copy2(source_path, DB_FILE_RAW_FALLBACK)
                     copied = True
                     break
                 except Exception:
                     continue
+
+            if not copied and os.path.exists(DB_FILE_RAW_FALLBACK):
+                fallback_ok, fallback_detail = check_db_integrity(DB_FILE_RAW_FALLBACK)
+                if not fallback_ok:
+                    print(f'Removing invalid raw DB fallback: {fallback_detail}')
+                    for suffix in ('', '-wal', '-shm'):
+                        try:
+                            os.remove(f'{DB_FILE_RAW_FALLBACK}{suffix}')
+                        except FileNotFoundError:
+                            pass
+                        except OSError:
+                            pass
 
             if not copied and not os.path.exists(DB_FILE_RAW_FALLBACK):
                 conn = sqlite3.connect(DB_FILE_RAW_FALLBACK, timeout=DB_BUSY_TIMEOUT_MS / 1000)
@@ -1583,24 +1620,26 @@ def get_db_connection(db_file, write=False):
             conn = sqlite3.connect(db_file, timeout=DB_BUSY_TIMEOUT_MS / 1000)
             cursor = conn.cursor()
 
-            # Best-effort SQLite tuning. On NAS shares, force DELETE journal mode
-            # because WAL sidecar files are unreliable or unavailable on UNC paths.
-            try:
-                cursor.execute(f'PRAGMA journal_mode={requested_mode}')
-            except sqlite3.OperationalError:
-                if requested_mode != 'DELETE':
-                    try:
-                        cursor.execute('PRAGMA journal_mode=DELETE')
-                    except sqlite3.OperationalError as mode_error:
+            # Setting journal mode can require an exclusive lock, especially on
+            # NAS shares. Only writers need to perform this one-time tuning;
+            # readers should not contend with an active solar write transaction.
+            if write:
+                try:
+                    cursor.execute(f'PRAGMA journal_mode={requested_mode}')
+                except sqlite3.OperationalError:
+                    if requested_mode != 'DELETE':
+                        try:
+                            cursor.execute('PRAGMA journal_mode=DELETE')
+                        except sqlite3.OperationalError as mode_error:
+                            warning_key = 'journal_mode_unset'
+                            if warning_key not in _db_warning_once:
+                                print(f'DB warning: unable to set journal mode ({mode_error})')
+                                _db_warning_once.add(warning_key)
+                    else:
                         warning_key = 'journal_mode_unset'
                         if warning_key not in _db_warning_once:
-                            print(f'DB warning: unable to set journal mode ({mode_error})')
+                            print('DB warning: unable to set journal mode=DELETE')
                             _db_warning_once.add(warning_key)
-                else:
-                    warning_key = 'journal_mode_unset'
-                    if warning_key not in _db_warning_once:
-                        print('DB warning: unable to set journal_mode=DELETE')
-                        _db_warning_once.add(warning_key)
 
             try:
                 cursor.execute(f'PRAGMA busy_timeout={DB_BUSY_TIMEOUT_MS}')
@@ -2536,6 +2575,8 @@ def _upsert_battery_total_row(cursor, table_name, key_column, key_value, total_e
 
 def _persist_marstek_sample_to_history(sample):
     """Persist one stable Marstek sample and update battery rollups."""
+    global _last_battery_rollup_ts
+
     if not sample or sample.get('status') != 'ok':
         return False
 
@@ -2564,20 +2605,11 @@ def _persist_marstek_sample_to_history(sample):
     totals_conn = None
     try:
         raw_conn = open_battery_history_connection(kind='raw', write=True)
-        avg_conn = open_battery_history_connection(kind='avg', write=True)
-        totals_conn = open_battery_history_connection(kind='totals', write=True)
-        avg_conn = _reuse_if_same_sqlite_file(raw_conn, avg_conn)
-        totals_conn = _reuse_if_same_sqlite_file(avg_conn, totals_conn)
-        totals_conn = _reuse_if_same_sqlite_file(raw_conn, totals_conn)
-        if raw_conn is None or avg_conn is None or totals_conn is None:
+        if raw_conn is None:
             return False
 
         raw_cursor = raw_conn.cursor()
-        avg_cursor = avg_conn.cursor()
-        totals_cursor = totals_conn.cursor()
         ensure_battery_history_schema(raw_cursor)
-        ensure_battery_history_schema(avg_cursor)
-        ensure_battery_history_schema(totals_cursor)
 
         created_at = time.time()
         _upsert_battery_raw_sample(
@@ -2590,18 +2622,36 @@ def _persist_marstek_sample_to_history(sample):
             source=sample.get('source', 'marstek'),
             created_at=created_at,
         )
-        _upsert_battery_realtime_sample(
-            raw_cursor,
-            timestamp_text,
-            consumption_w,
-            power_w=sample.get('power_w'),
-            soc_pct=sample.get('soc_pct'),
-            capacity_kwh=sample.get('capacity_kwh'),
-            status=sample.get('status', 'ok'),
-            source=sample.get('source', 'marstek'),
-            created_at=created_at,
-        )
+        if PERSIST_REALTIME_SAMPLES:
+            _upsert_battery_realtime_sample(
+                raw_cursor,
+                timestamp_text,
+                consumption_w,
+                power_w=sample.get('power_w'),
+                soc_pct=sample.get('soc_pct'),
+                capacity_kwh=sample.get('capacity_kwh'),
+                status=sample.get('status', 'ok'),
+                source=sample.get('source', 'marstek'),
+                created_at=created_at,
+            )
         raw_conn.commit()
+
+        rollup_now = time.time()
+        if rollup_now - _last_battery_rollup_ts < BATTERY_ROLLUP_INTERVAL_SECONDS:
+            return True
+
+        avg_conn = open_battery_history_connection(kind='avg', write=True)
+        totals_conn = open_battery_history_connection(kind='totals', write=True)
+        avg_conn = _reuse_if_same_sqlite_file(raw_conn, avg_conn)
+        totals_conn = _reuse_if_same_sqlite_file(avg_conn, totals_conn)
+        totals_conn = _reuse_if_same_sqlite_file(raw_conn, totals_conn)
+        if avg_conn is None or totals_conn is None:
+            return True
+
+        avg_cursor = avg_conn.cursor()
+        totals_cursor = totals_conn.cursor()
+        ensure_battery_history_schema(avg_cursor)
+        ensure_battery_history_schema(totals_cursor)
 
         bucket_end_epoch = bucket_epoch + 300
         raw_cursor.execute(
@@ -2691,6 +2741,7 @@ def _persist_marstek_sample_to_history(sample):
         )
 
         totals_conn.commit()
+        _last_battery_rollup_ts = rollup_now
         return True
     except Exception as e:
         print(f'Battery history persist failed: {e}')
@@ -2743,6 +2794,13 @@ def get_solar_5min_series(target_date):
     """Return solar 5-minute average power for the selected day."""
     day_start = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     day_end = day_start + timedelta(days=1)
+    cache_key = day_start.strftime('%Y-%m-%d')
+    now_for_cache = time.time()
+    with _series_cache_lock:
+        cache_entry = _solar_series_cache.get(cache_key)
+        if cache_entry and now_for_cache < cache_entry['expires']:
+            return list(cache_entry['data'])
+
     avg_conn = None
     raw_conn = None
 
@@ -2838,17 +2896,29 @@ def get_solar_5min_series(target_date):
                 }
 
         # The raw-table rescan below re-aggregates the whole day directly from
-        # solar_raw_data -- necessary for "today" (still accumulating, and
-        # more current than the rollup table) but pure redundant cost for a
-        # historical day whose five_minute_averages coverage is already
-        # near-complete (288 buckets/day; a small margin allows for brief
-        # collector restarts without falling back to a full raw rescan).
-        # Skip it only when it would add nothing; still run it when avg
-        # coverage is thin, since that's exactly the gap-recovery case this
-        # fallback exists for.
-        _avg_is_complete = avg_bucket_count >= 280
+        # solar_raw_data -- expensive, and redundant whenever
+        # five_minute_averages is already keeping up: the live collector
+        # upserts each bucket's average on every incoming sample (see the
+        # persist path above), so the rollup table is normally current to
+        # within one sample even for "today", not just for finished
+        # historical days. Compare against how many buckets *should* exist by
+        # now rather than a fixed 280/day threshold, so a genuinely stalled
+        # collector (today or historical) still falls back to this rescan for
+        # gap recovery, but a healthy "today" no longer pays for a full-day
+        # scan on every cache refresh.
+        if _is_today:
+            _now_for_completeness = time.time()
+            _expected_buckets_today = max(
+                0, int((min(_now_for_completeness, day_end.timestamp()) - day_start.timestamp()) // 300)
+            )
+            # The in-progress bucket is still filling and is refreshed
+            # separately below via get_live_solar_points, so don't count it
+            # against completeness.
+            _avg_is_complete = avg_bucket_count >= max(0, _expected_buckets_today - 1)
+        else:
+            _avg_is_complete = avg_bucket_count >= 280
         realtime_rows = []
-        if raw_cursor is not None and (_is_today or not _avg_is_complete):
+        if raw_cursor is not None and not _avg_is_complete:
             raw_cursor.execute(
                 '''SELECT CAST(timestamp / 300 AS INTEGER) * 300 AS bucket_ts,
                           AVG(power_w) AS avg_power_w,
@@ -2908,7 +2978,13 @@ def get_solar_5min_series(target_date):
                             'max_power_w': max(bucket_values),
                         }
 
-        return [series_map[key] for key in sorted(series_map.keys())]
+        result = [series_map[key] for key in sorted(series_map.keys())]
+        with _series_cache_lock:
+            _solar_series_cache[cache_key] = {
+                'expires': time.time() + SERIES_CACHE_TTL_SECONDS,
+                'data': result,
+            }
+        return list(result)
 
     except Exception as e:
         print(f"Solar 5-min series query failed: {e}")
@@ -2923,6 +2999,13 @@ def get_battery_5min_series(target_date):
     """Return battery 5-minute average power for the selected day."""
     day_start = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     day_end = day_start + timedelta(days=1)
+    cache_key = day_start.strftime('%Y-%m-%d')
+    now_for_cache = time.time()
+    with _series_cache_lock:
+        cache_entry = _battery_series_cache.get(cache_key)
+        if cache_entry and now_for_cache < cache_entry['expires']:
+            return list(cache_entry['data'])
+
     avg_conn = None
     raw_conn = None
 
@@ -2991,15 +3074,30 @@ def get_battery_5min_series(target_date):
                     'avg_soc_pct': float(row['avg_soc_pct']) if row['avg_soc_pct'] is not None else None,
                 }
 
-        # Skip the full-day raw rescan when the averages table is already
-        # near-complete for a historical day (288 buckets/day, small margin
-        # for brief collector gaps) -- battery_2sec.db is large, so this scan
-        # is expensive and, once a day is fully rolled up, redundant. Still
-        # always rescan for "today" (still accumulating) and for any day with
-        # thin avg coverage (real gap-recovery case).
-        _avg_is_complete = avg_bucket_count >= 280
+        # Skip the full-day raw rescan whenever five_minute_averages is
+        # already keeping up -- battery_2sec.db is large (hundreds of MB), so
+        # this scan is expensive, and it's redundant whenever the live
+        # collector's per-sample bucket upsert (see the persist path above)
+        # is doing its job: that keeps the rollup table current to within one
+        # sample even for "today", not just for finished historical days.
+        # Compare against how many buckets *should* exist by now rather than
+        # a fixed 280/day threshold, so a genuinely stalled collector (today
+        # or historical) still falls back to this rescan for gap recovery,
+        # but a healthy "today" no longer pays for a full-day scan on every
+        # cache refresh.
+        if _is_today:
+            _now_for_completeness = time.time()
+            _expected_buckets_today = max(
+                0, int((min(_now_for_completeness, day_end.timestamp()) - day_start.timestamp()) // 300)
+            )
+            # The in-progress bucket is still filling and is already kept
+            # live by the collector's per-sample upsert, so don't count it
+            # against completeness.
+            _avg_is_complete = avg_bucket_count >= max(0, _expected_buckets_today - 1)
+        else:
+            _avg_is_complete = avg_bucket_count >= 280
         realtime_rows = []
-        if raw_cursor is not None and (_is_today or not _avg_is_complete):
+        if raw_cursor is not None and not _avg_is_complete:
             raw_cursor.execute(
                 f'''SELECT CAST(timestamp / 300 AS INTEGER) * 300 AS bucket_ts,
                           AVG(consumption_w) AS avg_consumption_w,
@@ -3037,7 +3135,13 @@ def get_battery_5min_series(target_date):
                 'avg_soc_pct': float(row['avg_soc_pct']) if row['avg_soc_pct'] is not None else None,
             }
 
-        return [series_map[key] for key in sorted(series_map.keys())]
+        result = [series_map[key] for key in sorted(series_map.keys())]
+        with _series_cache_lock:
+            _battery_series_cache[cache_key] = {
+                'expires': time.time() + SERIES_CACHE_TTL_SECONDS,
+                'data': result,
+            }
+        return list(result)
     except Exception as e:
         print(f"Battery 5-min series query failed: {e}")
         return []
@@ -3135,6 +3239,45 @@ def get_solar_daily_totals(start_date=None, end_date=None):
                     pass
 
     # Fallback to stored daily_totals for dates not present in 5-minute rollups.
+    # During the current day the collector may have raw samples before the
+    # throttled rollup has created its first aggregate bucket. Read only
+    # today's missing bucket range in that case so the daily chart remains
+    # current without rescanning historical raw data.
+    today_key = datetime.now().strftime('%Y-%m-%d')
+    if (
+        start_date is not None
+        and end_date is not None
+        and str(start_date) <= today_key < str(end_date)
+        and today_key not in result_map
+    ):
+        raw_conn = None
+        try:
+            today_start = datetime.strptime(today_key, '%Y-%m-%d')
+            today_end = today_start + timedelta(days=1)
+            raw_conn = open_solar_history_connection(kind='raw')
+            if raw_conn is not None:
+                raw_cursor = raw_conn.cursor()
+                raw_cursor.execute(
+                    '''SELECT CAST(timestamp / 300 AS INTEGER) * 300 AS bucket_ts,
+                              AVG(power_w) AS avg_power_w
+                       FROM solar_raw_data
+                       WHERE timestamp >= ? AND timestamp < ?
+                         AND power_w IS NOT NULL
+                       GROUP BY CAST(timestamp / 300 AS INTEGER) * 300''',
+                    (today_start.timestamp(), today_end.timestamp()),
+                )
+                raw_rows = raw_cursor.fetchall()
+                if raw_rows:
+                    result_map[today_key] = sum(
+                        float(row['avg_power_w'] or 0.0) * (5.0 / 60.0) / 1000.0
+                        for row in raw_rows
+                    )
+        except Exception as e:
+            print(f'Solar daily raw fallback query failed: {e}')
+        finally:
+            if raw_conn:
+                raw_conn.close()
+
     conn = None
     try:
         conn = open_solar_history_connection(kind='totals')
@@ -3330,6 +3473,13 @@ def get_solar_monthly_totals(start_month=None, end_month=None):
 
 def get_battery_daily_discharge_totals(start_date=None, end_date=None):
     """Return date -> battery discharge kWh map (discharging counted as positive kWh)."""
+    cache_key = (str(start_date), str(end_date))
+    now_ts = time.time()
+    with _battery_daily_totals_cache_lock:
+        cached = _battery_daily_totals_cache.get(cache_key)
+        if cached and now_ts < cached.get('expires', 0.0):
+            return dict(cached['discharge'])
+
     avg_conn = None
     totals_conn = None
 
@@ -3342,12 +3492,18 @@ def get_battery_daily_discharge_totals(start_date=None, end_date=None):
         if avg_conn is not None:
             avg_cursor = avg_conn.cursor()
             query = (
-                "SELECT local_date, SUM(discharge_kwh) AS total_discharge_kwh "
+                "SELECT local_date, SUM(discharge_kwh) AS total_discharge_kwh, "
+                "       SUM(charge_kwh) AS total_charge_kwh, "
+                "       SUM(net_kwh) AS total_net_kwh "
                 "FROM ("
                 "  SELECT date(datetime(bucket_start, 'localtime')) AS local_date, "
                 "         CASE WHEN avg_consumption_w > 0 "
                 "              THEN (avg_consumption_w * (5.0 / 60.0) / 1000.0) "
-                "              ELSE 0.0 END AS discharge_kwh "
+                "              ELSE 0.0 END AS discharge_kwh, "
+                "         CASE WHEN avg_consumption_w < 0 "
+                "              THEN ((-avg_consumption_w) * (5.0 / 60.0) / 1000.0) "
+                "              ELSE 0.0 END AS charge_kwh, "
+                "         (avg_consumption_w * (5.0 / 60.0) / 1000.0) AS net_kwh "
                 "  FROM five_minute_averages"
                 ")"
             )
@@ -3364,15 +3520,28 @@ def get_battery_daily_discharge_totals(start_date=None, end_date=None):
             query += ' GROUP BY local_date ORDER BY local_date'
 
             avg_cursor.execute(query, tuple(params))
+            discharge_result = {}
+            charge_result = {}
+            net_result = {}
             for row in avg_cursor.fetchall():
                 date_value = row['local_date']
                 total_discharge_kwh = row['total_discharge_kwh']
                 if date_value is None or total_discharge_kwh is None:
                     continue
-                result[str(date_value)] = max(0.0, float(total_discharge_kwh))
+                date_key = str(date_value)
+                discharge_result[date_key] = max(0.0, float(total_discharge_kwh))
+                charge_result[date_key] = max(0.0, float(row['total_charge_kwh'] or 0.0))
+                net_result[date_key] = float(row['total_net_kwh'] or 0.0)
 
-            if result:
-                return result
+            if discharge_result or charge_result or net_result:
+                with _battery_daily_totals_cache_lock:
+                    _battery_daily_totals_cache[cache_key] = {
+                        'expires': now_ts + SERIES_CACHE_TTL_SECONDS,
+                        'discharge': discharge_result,
+                        'charge': charge_result,
+                        'net': net_result,
+                    }
+                return discharge_result
 
         # Fallback for older installs where avg DB may be missing.
         totals_conn = open_battery_history_connection(kind='totals')
@@ -3415,6 +3584,13 @@ def get_battery_daily_discharge_totals(start_date=None, end_date=None):
 
 def get_battery_daily_net_totals(start_date=None, end_date=None):
     """Return date -> net battery kWh map (discharge positive, charge negative)."""
+    cache_key = (str(start_date), str(end_date))
+    now_ts = time.time()
+    with _battery_daily_totals_cache_lock:
+        cached = _battery_daily_totals_cache.get(cache_key)
+        if cached and now_ts < cached.get('expires', 0.0):
+            return dict(cached['net'])
+
     avg_conn = None
     totals_conn = None
 
@@ -3495,6 +3671,13 @@ def get_battery_daily_net_totals(start_date=None, end_date=None):
 
 def get_battery_daily_charge_totals(start_date=None, end_date=None):
     """Return date -> battery charge kWh map (charging counted as positive kWh)."""
+    cache_key = (str(start_date), str(end_date))
+    now_ts = time.time()
+    with _battery_daily_totals_cache_lock:
+        cached = _battery_daily_totals_cache.get(cache_key)
+        if cached and now_ts < cached.get('expires', 0.0):
+            return dict(cached['charge'])
+
     avg_conn = None
     totals_conn = None
 
@@ -5584,10 +5767,6 @@ def cleanup_old_data():
             c = conn.cursor()
             c.execute(f'DELETE FROM {table_name} WHERE timestamp < ?', (cutoff_timestamp,))
             deleted_count = c.rowcount if c.rowcount != -1 else 0
-            conn.commit()
-            c.execute('PRAGMA wal_checkpoint(TRUNCATE)')
-            if deleted_count > 0:
-                c.execute('VACUUM')
             conn.commit()
 
             if db_file == DB_FILE_RAW:
@@ -7889,6 +8068,8 @@ _monthly_recover_check_cache = {}
 _solar_monthly_rebuild_cache = {}
 _solar_daily_rollup_rebuild_cache = {}
 _solar_daily_totals_persist_cache = {}
+_battery_daily_totals_cache = {}
+_battery_daily_totals_cache_lock = threading.Lock()
 _weekly_data_cache = {}
 _weekly_data_cache_lock = threading.Lock()
 _minute_data_cache = {}

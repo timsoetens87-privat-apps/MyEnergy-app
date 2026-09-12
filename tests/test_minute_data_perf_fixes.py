@@ -2,7 +2,10 @@ import contextlib
 import importlib
 import io
 import os
+import shutil
 import sqlite3
+import sys
+import tempfile
 import time
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -10,14 +13,32 @@ from datetime import datetime, timedelta, timezone
 
 class MinuteDataPerfFixesTests(unittest.TestCase):
     def setUp(self):
+        # CRITICAL: point the app at a throwaway data directory before import.
+        # Without this, `app` resolves DATA_DIR to the real production
+        # databases (P1_DATA_DIR defaults to <repo>/data) and every seed
+        # helper below writes fake rows straight into them. This previously
+        # happened for real and corrupted live energy/solar/battery data.
+        self._tmp_data_dir = tempfile.mkdtemp(prefix='p1_dashboard_test_')
+        self.addCleanup(shutil.rmtree, self._tmp_data_dir, ignore_errors=True)
+        os.environ['P1_DATA_DIR'] = self._tmp_data_dir
         os.environ['P1_ENABLE_BACKGROUND_THREADS'] = 'false'
+        os.environ['P1_ASYNC_STARTUP_MAINTENANCE'] = 'false'
         os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
+
+        # `app` must be freshly imported against the temp DATA_DIR every test
+        # run -- a cached module from a prior import would keep pointing at
+        # whatever directory was active then (real data, on a plain `import`).
+        sys.modules.pop('app', None)
 
         capture = io.StringIO()
         with contextlib.redirect_stdout(capture), contextlib.redirect_stderr(capture):
             self.app_module = importlib.import_module('app')
 
         self.app = self.app_module
+        self.assertEqual(
+            os.path.normpath(self.app.DATA_DIR), os.path.normpath(self._tmp_data_dir),
+            'app.DATA_DIR must resolve to the isolated temp dir, never the real data/ directory',
+        )
         # Isolate module-level throttle caches between tests.
         self.app._solar_daily_rollup_rebuild_cache.clear()
         self.app._solar_daily_totals_persist_cache.clear()
@@ -212,6 +233,57 @@ class MinuteDataPerfFixesTests(unittest.TestCase):
         self.assertIsNotNone(bucket_at_two_hours, 'raw fallback should have surfaced the gap-period sample')
         self.assertAlmostEqual(777.0, float(bucket_at_two_hours['avg_power_w']), places=2)
 
+    def test_solar_raw_rescan_is_skipped_for_today_when_avg_coverage_matches_elapsed(self):
+        """"Today" must skip the full-day raw rescan once five_minute_averages
+        already covers everything the live collector's per-sample upsert
+        should have persisted by now -- the fixed 280-bucket/day threshold
+        used for historical days doesn't apply to a still-accumulating day,
+        so completeness is judged against elapsed time instead."""
+        now = datetime.now(timezone.utc)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_start_ts = day_start.timestamp()
+        elapsed_seconds = (now - day_start).total_seconds()
+        if elapsed_seconds < 900:
+            self.skipTest('too close to local midnight for a stable elapsed-time comparison')
+
+        expected_buckets = int(elapsed_seconds // 300)
+        self._seed_solar_avg_buckets(day_start_ts, count=expected_buckets, power_w=500.0)
+        # A raw point inside an already-covered bucket, with a clearly
+        # different value; if the (expensive) full-day rescan incorrectly
+        # still ran, this would overwrite the avg-derived 500.0.
+        self._seed_solar_raw_point(day_start_ts + 60, 999.0)
+        # Pre-throttle the separate top-of-function rollup rebuild (it also
+        # folds raw data into the avg table whenever any raw data exists for
+        # today, regardless of avg completeness) so this test isolates the
+        # in-request raw-rescan-skip behavior being tested here.
+        self.app._solar_daily_rollup_rebuild_cache[day_start.strftime('%Y-%m-%d')] = {
+            'expires': time.time() + 3600.0,
+        }
+
+        series = self.app.get_solar_5min_series(day_start)
+        bucket_at_start = next(p for p in series if p['timestamp'] == int(day_start_ts * 1000))
+        self.assertAlmostEqual(500.0, float(bucket_at_start['avg_power_w']), places=2)
+
+    def test_solar_raw_rescan_still_runs_for_today_when_avg_coverage_is_thin(self):
+        """A stalled collector -- avg coverage far behind how many buckets
+        should exist by now -- must still trigger the raw rescan for "today";
+        that's the real gap-recovery case the fallback exists for, and must
+        not be lost by comparing against elapsed time instead of a flat 280."""
+        now = datetime.now(timezone.utc)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_start_ts = day_start.timestamp()
+        elapsed_seconds = (now - day_start).total_seconds()
+        if elapsed_seconds < 900:
+            self.skipTest('too close to local midnight for a stable elapsed-time comparison')
+
+        self._seed_solar_avg_buckets(day_start_ts, count=1, power_w=500.0)
+        self._seed_solar_raw_point(day_start_ts + 3600, 777.0)
+
+        series = self.app.get_solar_5min_series(day_start)
+        bucket_at_one_hour = next((p for p in series if p['timestamp'] == int((day_start_ts + 3600) * 1000)), None)
+        self.assertIsNotNone(bucket_at_one_hour, 'raw fallback should have surfaced the gap-period sample')
+        self.assertAlmostEqual(777.0, float(bucket_at_one_hour['avg_power_w']), places=2)
+
     def test_battery_raw_rescan_is_skipped_when_avg_coverage_is_complete(self):
         """Same completeness-based skip as solar, applied to battery, which
         has an even larger raw table in production (battery_2sec.db)."""
@@ -243,6 +315,66 @@ class MinuteDataPerfFixesTests(unittest.TestCase):
         self.assertEqual(288, len(series))
         bucket_at_one_hour = next(p for p in series if p['timestamp'] == int((day_start_ts + 3600) * 1000))
         self.assertAlmostEqual(300.0, float(bucket_at_one_hour['avg_consumption_w']), places=2)
+
+    def _seed_battery_avg_buckets(self, day_start_ts, count, consumption_w):
+        conn = self.app.open_battery_history_connection(kind='avg', write=True)
+        cursor = conn.cursor()
+        self.app.ensure_battery_history_schema(cursor)
+        for i in range(count):
+            bucket_start = datetime.fromtimestamp(day_start_ts + i * 300, timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            self.app._upsert_battery_five_minute_average(
+                cursor, bucket_start, consumption_w, consumption_w, 50.0, 1,
+                consumption_w * (5.0 / 60.0) / 1000.0, updated_at=time.time(),
+            )
+        conn.commit()
+        conn.close()
+
+    def _seed_battery_raw_point(self, timestamp_ts, consumption_w):
+        conn = self.app.open_battery_history_connection(kind='raw', write=True)
+        cursor = conn.cursor()
+        self.app.ensure_battery_history_schema(cursor)
+        self.app._upsert_battery_raw_sample(
+            cursor, timestamp_ts, consumption_w, source='test', created_at=timestamp_ts,
+        )
+        conn.commit()
+        conn.close()
+
+    def test_battery_raw_rescan_is_skipped_for_today_when_avg_coverage_matches_elapsed(self):
+        """Same elapsed-time-based completeness skip as solar (Change: the
+        fixed 280-bucket/day threshold doesn't apply to a still-accumulating
+        "today"), applied to battery, which has the largest raw table."""
+        now = datetime.now(timezone.utc)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_start_ts = day_start.timestamp()
+        elapsed_seconds = (now - day_start).total_seconds()
+        if elapsed_seconds < 900:
+            self.skipTest('too close to local midnight for a stable elapsed-time comparison')
+
+        expected_buckets = int(elapsed_seconds // 300)
+        self._seed_battery_avg_buckets(day_start_ts, count=expected_buckets, consumption_w=300.0)
+        self._seed_battery_raw_point(day_start_ts + 60, 999.0)
+
+        series = self.app.get_battery_5min_series(day_start)
+        bucket_at_start = next(p for p in series if p['timestamp'] == int(day_start_ts * 1000))
+        self.assertAlmostEqual(300.0, float(bucket_at_start['avg_consumption_w']), places=2)
+
+    def test_battery_raw_rescan_still_runs_for_today_when_avg_coverage_is_thin(self):
+        """A stalled battery collector must still trigger the raw rescan for
+        "today" -- the real gap-recovery case the fallback exists for."""
+        now = datetime.now(timezone.utc)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_start_ts = day_start.timestamp()
+        elapsed_seconds = (now - day_start).total_seconds()
+        if elapsed_seconds < 900:
+            self.skipTest('too close to local midnight for a stable elapsed-time comparison')
+
+        self._seed_battery_avg_buckets(day_start_ts, count=1, consumption_w=300.0)
+        self._seed_battery_raw_point(day_start_ts + 3600, 777.0)
+
+        series = self.app.get_battery_5min_series(day_start)
+        bucket_at_one_hour = next((p for p in series if p['timestamp'] == int((day_start_ts + 3600) * 1000)), None)
+        self.assertIsNotNone(bucket_at_one_hour, 'raw fallback should have surfaced the gap-period sample')
+        self.assertAlmostEqual(777.0, float(bucket_at_one_hour['avg_consumption_w']), places=2)
 
     def test_solar_daily_totals_write_is_throttled(self):
         """Change 4: get_solar_daily_totals must not commit an upsert into

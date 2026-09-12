@@ -1,6 +1,5 @@
 to run app on the nas --> SSH into nas
     ssh -p 100 tsoetens@192.168.0.107
-    pw = <see password manager, removed from repo 2026-09-04>
 
 als proces draait en killen
 
