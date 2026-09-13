@@ -112,6 +112,7 @@ DB_CONNECT_RETRIES = 5
 DB_CONNECT_RETRY_BASE_SECONDS = 0.2
 MAX_COUNTER_STEP_KWH = float(os.getenv('P1_MAX_COUNTER_STEP_KWH', '0.2'))
 GAS_KWH_PER_M3 = max(0.1, float(os.getenv('GAS_KWH_PER_M3', '11.2')))
+GAS_PRICE_EUR_PER_KWH = max(0.0, float(os.getenv('GAS_PRICE_EUR_PER_KWH', '0.08')))
 GAS_TOTALS_REFRESH_SECONDS = max(30.0, float(os.getenv('GAS_TOTALS_REFRESH_SECONDS', '300')))
 GAS_MAX_COUNTER_STEP_M3 = max(0.05, float(os.getenv('GAS_MAX_COUNTER_STEP_M3', '2.0')))
 GAS_MAX_RATE_M3_PER_HOUR = max(0.1, float(os.getenv('GAS_MAX_RATE_M3_PER_HOUR', '1.2')))
@@ -177,7 +178,7 @@ BATTERY_ROLLUP_INTERVAL_SECONDS = max(60.0, float(os.getenv('BATTERY_ROLLUP_INTE
 PERSIST_REALTIME_SAMPLES = os.getenv('PERSIST_REALTIME_SAMPLES', 'false').lower() in ('1', 'true', 'yes', 'on')
 MARSTEK_STABILITY_WINDOW = max(1, int(float(os.getenv('MARSTEK_STABILITY_WINDOW', '3'))))
 LIVE_DENSIFY_POWER_HOLD_SECONDS = max(10.0, float(os.getenv('LIVE_DENSIFY_POWER_HOLD_SECONDS', '20')))
-LIVE_DENSIFY_SOLAR_HOLD_SECONDS = max(10.0, float(os.getenv('LIVE_DENSIFY_SOLAR_HOLD_SECONDS', '20')))
+LIVE_DENSIFY_SOLAR_HOLD_SECONDS = max(10.0, float(os.getenv('LIVE_DENSIFY_SOLAR_HOLD_SECONDS', '120')))
 LIVE_DENSIFY_BATTERY_HOLD_SECONDS = max(10.0, float(os.getenv('LIVE_DENSIFY_BATTERY_HOLD_SECONDS', '20')))
 P1_LIVE_POLL_INTERVAL_SECONDS = max(
     2.0,
@@ -1242,7 +1243,7 @@ EMAIL_TO = DEFAULT_EMAIL_TO  # For SMS via email gateway
 SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
 SMTP_USER = os.getenv('SMTP_USER', '')
-SMTP_PASS = os.getenv('SMTP_PASS', '')
+SMTP_PASS = ''.join(os.getenv('SMTP_PASS', '').split())
 DEFAULT_SMTP_USER = SMTP_USER
 DEFAULT_SMTP_PASS = SMTP_PASS
 
@@ -2125,7 +2126,7 @@ def load_settings():
             SMTP_USER = saved_smtp_user
 
     if not DEFAULT_SMTP_PASS:
-        saved_smtp_pass = str(saved_settings.get('smtpPass', '')).strip()
+        saved_smtp_pass = ''.join(str(saved_settings.get('smtpPass', '')).split())
         if saved_smtp_pass:
             SMTP_PASS = saved_smtp_pass
 
@@ -2805,40 +2806,11 @@ def get_solar_5min_series(target_date):
     raw_conn = None
 
     try:
-        # Only rebuild rollups for "today". Raw solar data is retained for 30
-        # days (not just today), so a raw-data-exists check alone would
-        # trigger a full-day rebuild scan on the *first* visit to every
-        # historical day too -- and historical days' rollups are already kept
-        # correct incrementally by the live collector's per-sample persist,
-        # so re-scanning their raw history on read is pure redundant cost.
+        # Rollups are maintained by the live collector. Never rebuild raw solar
+        # history in the chart request path.
         _is_today = target_date.date() == datetime.now().date()
-        if _is_today:
-            _raw_conn_check = open_solar_history_connection(kind='raw')
-            _has_raw_data = False
-            if _raw_conn_check is not None:
-                try:
-                    _c = _raw_conn_check.cursor()
-                    _c.execute(
-                        'SELECT 1 FROM solar_raw_data WHERE timestamp >= ? AND timestamp < ? LIMIT 1',
-                        (day_start.timestamp(), day_end.timestamp()),
-                    )
-                    _has_raw_data = _c.fetchone() is not None
-                except Exception:
-                    pass
-                finally:
-                    _raw_conn_check.close()
-            if _has_raw_data:
-                # The rebuild is write-heavy (write lock + 3 connections); throttle
-                # it to at most once per minute per day instead of running it on
-                # every cache-miss request for "today".
-                _day_key = day_start.strftime('%Y-%m-%d')
-                _now_ts = time.time()
-                _rebuild_entry = _solar_daily_rollup_rebuild_cache.get(_day_key)
-                if not _rebuild_entry or _now_ts >= _rebuild_entry.get('expires', 0.0):
-                    rebuild_solar_rollups_from_history(day_start.timestamp(), day_end.timestamp())
-                    _solar_daily_rollup_rebuild_cache[_day_key] = {'expires': _now_ts + 60.0}
         avg_conn = open_solar_history_connection(kind='avg')
-        raw_conn = open_solar_history_connection(kind='raw')
+        raw_conn = None if _is_today else open_solar_history_connection(kind='raw')
         if avg_conn is None and raw_conn is None:
             return []
 
@@ -2914,7 +2886,7 @@ def get_solar_5min_series(target_date):
             # The in-progress bucket is still filling and is refreshed
             # separately below via get_live_solar_points, so don't count it
             # against completeness.
-            _avg_is_complete = avg_bucket_count >= max(0, _expected_buckets_today - 1)
+            _avg_is_complete = True
         else:
             _avg_is_complete = avg_bucket_count >= 280
         realtime_rows = []
@@ -3010,8 +2982,9 @@ def get_battery_5min_series(target_date):
     raw_conn = None
 
     try:
+        _is_today = target_date.date() == datetime.now().date()
         avg_conn = open_battery_history_connection(kind='avg')
-        raw_conn = open_battery_history_connection(kind='raw')
+        raw_conn = None if _is_today else open_battery_history_connection(kind='raw')
         if avg_conn is None and raw_conn is None:
             return []
 
@@ -3021,8 +2994,6 @@ def get_battery_5min_series(target_date):
         day_end_str = datetime.fromtimestamp(day_end.timestamp(), timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         series_map = {}
         avg_bucket_count = 0
-        _is_today = target_date.date() == datetime.now().date()
-
         avg_has_soc = False
         raw_has_soc = False
         realtime_has_soc = False
@@ -3093,7 +3064,7 @@ def get_battery_5min_series(target_date):
             # The in-progress bucket is still filling and is already kept
             # live by the collector's per-sample upsert, so don't count it
             # against completeness.
-            _avg_is_complete = avg_bucket_count >= max(0, _expected_buckets_today - 1)
+            _avg_is_complete = True
         else:
             _avg_is_complete = avg_bucket_count >= 280
         realtime_rows = []
@@ -3157,6 +3128,35 @@ def get_battery_5min_series(target_date):
 def get_solar_daily_totals(start_date=None, end_date=None):
     """Return a date -> solar yield map, sourced from 5-minute rollups with fallback."""
     result_map = {}
+
+    # Historical chart requests should read the maintained daily rollup first.
+    # Re-grouping the full 5-minute table is only needed for missing periods.
+    if start_date is not None and end_date is not None:
+        totals_conn = None
+        try:
+            totals_conn = open_solar_history_connection(kind='totals')
+            if totals_conn is not None:
+                totals_cursor = totals_conn.cursor()
+                totals_cursor.execute(
+                    '''SELECT date, total_energy_kwh
+                       FROM daily_totals
+                       WHERE date >= ? AND date < ?
+                       ORDER BY date''',
+                    (str(start_date), str(end_date)),
+                )
+                for date_value, total_energy_kwh in totals_cursor.fetchall():
+                    if date_value is not None:
+                        result_map[str(date_value)] = (
+                            float(total_energy_kwh) if total_energy_kwh is not None else None
+                        )
+                if result_map:
+                    return dict(sorted(result_map.items()))
+        except Exception as e:
+            print(f'Solar daily rollup lookup failed: {e}')
+        finally:
+            if totals_conn:
+                totals_conn.close()
+
     avg_conn = None
     totals_conn = None
 
@@ -3496,7 +3496,7 @@ def get_battery_daily_discharge_totals(start_date=None, end_date=None):
                 "       SUM(charge_kwh) AS total_charge_kwh, "
                 "       SUM(net_kwh) AS total_net_kwh "
                 "FROM ("
-                "  SELECT date(datetime(bucket_start, 'localtime')) AS local_date, "
+                "  SELECT bucket_start, date(datetime(bucket_start, 'localtime')) AS local_date, "
                 "         CASE WHEN avg_consumption_w > 0 "
                 "              THEN (avg_consumption_w * (5.0 / 60.0) / 1000.0) "
                 "              ELSE 0.0 END AS discharge_kwh, "
@@ -3507,16 +3507,13 @@ def get_battery_daily_discharge_totals(start_date=None, end_date=None):
                 "  FROM five_minute_averages"
                 ")"
             )
-            clauses = []
             params = []
             if start_date is not None:
-                clauses.append('local_date >= ?')
+                query += ' WHERE bucket_start >= ?'
                 params.append(str(start_date))
             if end_date is not None:
-                clauses.append('local_date < ?')
+                query += ' AND bucket_start < ?' if start_date is not None else ' WHERE bucket_start < ?'
                 params.append(str(end_date))
-            if clauses:
-                query += ' WHERE ' + ' AND '.join(clauses)
             query += ' GROUP BY local_date ORDER BY local_date'
 
             avg_cursor.execute(query, tuple(params))
@@ -4362,7 +4359,7 @@ def update_settings():
     send_notification = data.get('sendNotification', notifications_enabled)
     admin_token = str(data.get('adminToken', runtime_admin_token)).strip()
     smtp_user = str(data.get('smtpUser', SMTP_USER)).strip()
-    smtp_pass = str(data.get('smtpPass', SMTP_PASS)).strip()
+    smtp_pass = ''.join(str(data.get('smtpPass', SMTP_PASS)).split())
 
     if email and '@' not in email:
         return jsonify({"message": "Invalid email address"}), 400
@@ -4636,6 +4633,28 @@ def init_db():
         updated_at REAL
     )''')
     c_daily.execute('CREATE INDEX IF NOT EXISTS idx_daily_day_start ON daily_consumption(day_start_ts)')
+    c_daily.execute('''CREATE TABLE IF NOT EXISTS savings_daily (
+        date TEXT PRIMARY KEY,
+        solar_saved_kwh REAL NOT NULL DEFAULT 0,
+        battery_saved_kwh REAL NOT NULL DEFAULT 0,
+        total_saved_kwh REAL NOT NULL DEFAULT 0,
+        updated_at REAL NOT NULL
+    )''')
+    c_daily.execute('CREATE INDEX IF NOT EXISTS idx_savings_daily_date ON savings_daily(date)')
+    c_daily.execute('''CREATE TABLE IF NOT EXISTS savings_monthly (
+        month TEXT PRIMARY KEY,
+        solar_saved_kwh REAL NOT NULL DEFAULT 0,
+        battery_saved_kwh REAL NOT NULL DEFAULT 0,
+        total_saved_kwh REAL NOT NULL DEFAULT 0,
+        updated_at REAL NOT NULL
+    )''')
+    c_daily.execute('''CREATE TABLE IF NOT EXISTS savings_yearly (
+        year INTEGER PRIMARY KEY,
+        solar_saved_kwh REAL NOT NULL DEFAULT 0,
+        battery_saved_kwh REAL NOT NULL DEFAULT 0,
+        total_saved_kwh REAL NOT NULL DEFAULT 0,
+        updated_at REAL NOT NULL
+    )''')
 
     # Backward-compatible schema upgrade for existing installs.
     c_daily.execute("PRAGMA table_info(daily_consumption)")
@@ -4969,6 +4988,105 @@ def rebuild_daily_consumption_from_raw_range(start_ts=None, end_ts=None):
     conn_daily.commit()
     conn_daily.close()
     return rebuilt
+
+
+def rebuild_savings_rollups(start_ts=None, end_ts=None):
+    """Persist solar and battery savings for the affected days and periods."""
+    if start_ts is None or end_ts is None:
+        range_conn = get_db_connection(DB_FILE_DAILY)
+        range_cursor = range_conn.cursor()
+        range_cursor.execute('SELECT MIN(date), MAX(date) FROM daily_consumption')
+        first_date, last_date = range_cursor.fetchone() or (None, None)
+        range_conn.close()
+        if first_date and last_date:
+            start_day = datetime.strptime(str(first_date), '%Y-%m-%d')
+            end_day = datetime.strptime(str(last_date), '%Y-%m-%d') + timedelta(days=1)
+        else:
+            start_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            end_day = start_day + timedelta(days=1)
+    else:
+        start_day = datetime.fromtimestamp(start_ts).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_day = datetime.fromtimestamp(end_ts).replace(hour=0, minute=0, second=0, microsecond=0)
+        if end_day <= start_day:
+            end_day = start_day + timedelta(days=1)
+
+    start_date = start_day.strftime('%Y-%m-%d')
+    end_date = end_day.strftime('%Y-%m-%d')
+    solar_map = get_solar_daily_totals(start_date, end_date)
+    battery_map = get_battery_daily_discharge_totals(start_date, end_date)
+
+    conn = get_db_connection(DB_FILE_DAILY, write=True)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''SELECT date, injection_kwh
+           FROM daily_consumption
+           WHERE date >= ? AND date < ?''',
+        (start_date, end_date),
+    )
+    injection_map = {
+        str(day): max(0.0, float(injection or 0.0))
+        for day, injection in cursor.fetchall()
+        if day
+    }
+
+    day = start_day
+    touched_months = set()
+    touched_years = set()
+    now_ts = time.time()
+    while day < end_day:
+        day_key = day.strftime('%Y-%m-%d')
+        solar_saved = max(0.0, float(solar_map.get(day_key) or 0.0) - injection_map.get(day_key, 0.0))
+        battery_saved = max(0.0, float(battery_map.get(day_key) or 0.0))
+        cursor.execute(
+            '''INSERT OR REPLACE INTO savings_daily
+               (date, solar_saved_kwh, battery_saved_kwh, total_saved_kwh, updated_at)
+               VALUES (?, ?, ?, ?, ?)''',
+            (day_key, solar_saved, battery_saved, solar_saved + battery_saved, now_ts),
+        )
+        touched_months.add(day.strftime('%Y-%m'))
+        touched_years.add(day.year)
+        day += timedelta(days=1)
+
+    for month_key in touched_months:
+        month_start = f'{month_key}-01'
+        year_value, month_value = (int(part) for part in month_key.split('-'))
+        next_month = (
+            f'{year_value + 1:04d}-01-01' if month_value == 12
+            else f'{year_value:04d}-{month_value + 1:02d}-01'
+        )
+        cursor.execute(
+            '''SELECT COALESCE(SUM(solar_saved_kwh), 0.0),
+                      COALESCE(SUM(battery_saved_kwh), 0.0),
+                      COALESCE(SUM(total_saved_kwh), 0.0)
+               FROM savings_daily WHERE date >= ? AND date < ?''',
+            (month_start, next_month),
+        )
+        solar_saved, battery_saved, total_saved = cursor.fetchone() or (0.0, 0.0, 0.0)
+        cursor.execute(
+            '''INSERT OR REPLACE INTO savings_monthly
+               (month, solar_saved_kwh, battery_saved_kwh, total_saved_kwh, updated_at)
+               VALUES (?, ?, ?, ?, ?)''',
+            (month_key, solar_saved, battery_saved, total_saved, now_ts),
+        )
+
+    for year_value in touched_years:
+        cursor.execute(
+            '''SELECT COALESCE(SUM(solar_saved_kwh), 0.0),
+                      COALESCE(SUM(battery_saved_kwh), 0.0),
+                      COALESCE(SUM(total_saved_kwh), 0.0)
+               FROM savings_daily WHERE date >= ? AND date < ?''',
+            (f'{year_value:04d}-01-01', f'{year_value + 1:04d}-01-01'),
+        )
+        solar_saved, battery_saved, total_saved = cursor.fetchone() or (0.0, 0.0, 0.0)
+        cursor.execute(
+            '''INSERT OR REPLACE INTO savings_yearly
+               (year, solar_saved_kwh, battery_saved_kwh, total_saved_kwh, updated_at)
+               VALUES (?, ?, ?, ?, ?)''',
+            (year_value, solar_saved, battery_saved, total_saved, now_ts),
+        )
+
+    conn.commit()
+    conn.close()
 
 
 def get_live_daily_breakdown(target_date):
@@ -5748,6 +5866,8 @@ def store_5min_average(interval_timestamp):
             # Keep daily derived table fresh at the same cadence as new 5-minute intervals.
             if inserted:
                 rebuild_daily_consumption_from_raw_range(interval_timestamp, interval_end)
+            refresh_gas_totals_for_day(interval_timestamp)
+            rebuild_savings_rollups(interval_timestamp, interval_end)
         return True
     except Exception as e:
         print(f"Error storing 5-min average: {e}")
@@ -6187,6 +6307,12 @@ def run_startup_maintenance():
         init_battery_history_dbs()
     except Exception as e:
         print(f'Async startup: battery DB init failed: {e}')
+
+    try:
+        rebuild_savings_rollups()
+        print('Async startup: savings rollups refreshed')
+    except Exception as e:
+        print(f'Async startup: savings rollup failed: {e}')
 
     try:
         init_backup_db()
@@ -6695,14 +6821,9 @@ def get_weekly_data():
         day_values = daily_map.setdefault(date_value, {})
         day_values['solar_yield_kwh'] = float(solar_yield_kwh) if solar_yield_kwh is not None else None
 
-    battery_daily_charge_map = get_battery_daily_charge_totals(
-        start_of_month.strftime('%Y-%m-%d'),
-        next_month.strftime('%Y-%m-%d'),
-    )
-    for date_value, battery_charge_kwh in battery_daily_charge_map.items():
-        day_values = daily_map.setdefault(date_value, {})
-        day_values['battery_charge_kwh'] = float(battery_charge_kwh) if battery_charge_kwh is not None else 0.0
-
+    # Discharge is the shared battery-rollup loader. It populates charge and
+    # net maps too, so load it first and avoid scanning five_minute_averages
+    # once per battery metric.
     battery_daily_discharge_map = get_battery_daily_discharge_totals(
         start_of_month.strftime('%Y-%m-%d'),
         next_month.strftime('%Y-%m-%d'),
@@ -6711,6 +6832,14 @@ def get_weekly_data():
         day_values = daily_map.setdefault(date_value, {})
         day_values['battery_discharge_kwh'] = float(battery_discharge_kwh) if battery_discharge_kwh is not None else 0.0
 
+    battery_daily_charge_map = get_battery_daily_charge_totals(
+        start_of_month.strftime('%Y-%m-%d'),
+        next_month.strftime('%Y-%m-%d'),
+    )
+    for date_value, battery_charge_kwh in battery_daily_charge_map.items():
+        day_values = daily_map.setdefault(date_value, {})
+        day_values['battery_charge_kwh'] = float(battery_charge_kwh) if battery_charge_kwh is not None else 0.0
+
     battery_daily_net_map = get_battery_daily_net_totals(
         start_of_month.strftime('%Y-%m-%d'),
         next_month.strftime('%Y-%m-%d'),
@@ -6718,33 +6847,6 @@ def get_weekly_data():
     for date_value, battery_net_kwh in battery_daily_net_map.items():
         day_values = daily_map.setdefault(date_value, {})
         day_values['battery_net_kwh'] = float(battery_net_kwh) if battery_net_kwh is not None else 0.0
-
-    # Override today's row with a live reading from raw samples so the monthly
-    # table always shows the current state rather than the last 5-min snapshot.
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    if today_str in daily_map or (start_of_month <= datetime.now() < next_month):
-        breakdown_key = (today_str, int(now_ts // 15))
-        if (
-            _live_daily_breakdown_cache.get('key') == breakdown_key
-            and now_ts < _live_daily_breakdown_cache.get('expires', 0.0)
-        ):
-            live = _live_daily_breakdown_cache.get('data')
-        else:
-            live = get_live_daily_breakdown(datetime.now())
-            _live_daily_breakdown_cache['key'] = breakdown_key
-            _live_daily_breakdown_cache['expires'] = now_ts + 15.0
-            _live_daily_breakdown_cache['data'] = live
-        if live is not None:
-            existing = daily_map.get(today_str, {})
-            daily_map[today_str] = {
-                **existing,
-                'consumption': live['consumption_kwh'],
-                'injection': live['injection_kwh'],
-                'consumption_offpeak_kwh': live['consumption_offpeak_kwh'],
-                'consumption_peak_kwh': live['consumption_peak_kwh'],
-                'injection_offpeak_kwh': live['injection_offpeak_kwh'],
-                'injection_peak_kwh': live['injection_peak_kwh'],
-            }
 
     # Keep monthly table totals internally consistent when an exact split exists.
     for day_values in daily_map.values():
@@ -7751,6 +7853,13 @@ def get_cost_data():
             target_date = datetime.now()
     else:
         target_date = datetime.now()
+
+    cost_cache_key = target_date.strftime('%Y-%m-%d')
+    now_ts = time.time()
+    with _cost_data_cache_lock:
+        cached_costs = _cost_data_cache.get(cost_cache_key)
+        if cached_costs and now_ts < cached_costs.get('expires', 0.0):
+            return _json_nocache(cached_costs['payload'])
     
     midnight_start = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     midnight_end = midnight_start + timedelta(days=1)
@@ -7800,7 +7909,140 @@ def get_cost_data():
         })
         current += 300
 
-    return jsonify(result)
+    with _cost_data_cache_lock:
+        _cost_data_cache[cost_cache_key] = {
+            'expires': time.time() + (60.0 if target_date.date() == datetime.now().date() else 6 * 3600.0),
+            'payload': result,
+        }
+        if len(_cost_data_cache) > 14:
+            expired_keys = [
+                key for key, entry in _cost_data_cache.items()
+                if time.time() >= float(entry.get('expires', 0.0) or 0.0)
+            ]
+            for key in expired_keys:
+                _cost_data_cache.pop(key, None)
+
+    return _json_nocache(result)
+
+
+@app.route("/cost_summary")
+def get_cost_summary():
+    """Return daily and monthly electricity, gas, and combined costs."""
+    date_str = request.args.get('date')
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d') if date_str else datetime.now()
+    except Exception:
+        target_date = datetime.now()
+
+    month_start = target_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    next_month = (
+        month_start.replace(year=month_start.year + 1, month=1)
+        if month_start.month == 12
+        else month_start.replace(month=month_start.month + 1)
+    )
+
+    daily_payload = get_cost_data().get_json() or []
+    daily_electricity_cost = sum(
+        float(item.get('cost') or 0.0)
+        for item in daily_payload
+        if item.get('cost') is not None
+    )
+
+    conn_gas = get_db_connection(DB_FILE_GAS_TOTALS)
+    cursor_gas = conn_gas.cursor()
+    cursor_gas.execute(
+        '''SELECT date, usage_kwh
+           FROM gas_daily_totals
+           WHERE date >= ? AND date < ?''',
+        (month_start.strftime('%Y-%m-%d'), next_month.strftime('%Y-%m-%d')),
+    )
+    gas_rows = cursor_gas.fetchall()
+    conn_gas.close()
+    gas_by_date = {str(day): float(kwh or 0.0) for day, kwh in gas_rows if day}
+
+    daily_gas_kwh = gas_by_date.get(target_date.strftime('%Y-%m-%d'), 0.0)
+    monthly_gas_kwh = sum(gas_by_date.values())
+
+    conn_savings = get_db_connection(DB_FILE_DAILY)
+    cursor_savings = conn_savings.cursor()
+    selected_day_key = target_date.strftime('%Y-%m-%d')
+    cursor_savings.execute(
+        '''SELECT solar_saved_kwh, battery_saved_kwh, total_saved_kwh
+           FROM savings_daily WHERE date = ?''',
+        (selected_day_key,),
+    )
+    day_row = cursor_savings.fetchone() or (0.0, 0.0, 0.0)
+    cursor_savings.execute(
+        '''SELECT solar_saved_kwh, battery_saved_kwh, total_saved_kwh
+           FROM savings_monthly WHERE month = ?''',
+        (month_start.strftime('%Y-%m'),),
+    )
+    month_row = cursor_savings.fetchone() or (0.0, 0.0, 0.0)
+    cursor_savings.execute(
+        '''SELECT solar_saved_kwh, battery_saved_kwh, total_saved_kwh
+           FROM savings_yearly WHERE year = ?''',
+        (target_date.year,),
+    )
+    year_row = cursor_savings.fetchone() or (0.0, 0.0, 0.0)
+    conn_savings.close()
+
+    def savings_payload(row):
+        return {
+            'solar_kwh': round(float(row[0] or 0.0), 3),
+            'battery_kwh': round(float(row[1] or 0.0), 3),
+            'total_kwh': round(float(row[2] or 0.0), 3),
+        }
+
+    day_savings = savings_payload(day_row)
+    month_savings = savings_payload(month_row)
+    year_savings = savings_payload(year_row)
+
+    month_key = month_start.strftime('%Y-%m')
+    with _cost_summary_cache_lock:
+        cached_month = _cost_summary_cache.get(month_key)
+    if cached_month and time.time() < cached_month.get('expires', 0.0):
+        monthly_electricity_cost = float(cached_month.get('electricity_cost_eur', 0.0))
+    else:
+        monthly_electricity_cost = 0.0
+        current_day = month_start
+        while current_day < next_month:
+            day_key = current_day.strftime('%Y-%m-%d')
+            with app.test_request_context(query_string={'date': day_key}):
+                day_payload = get_cost_data().get_json() or []
+            monthly_electricity_cost += sum(
+                float(item.get('cost') or 0.0)
+                for item in day_payload
+                if item.get('cost') is not None
+            )
+            current_day += timedelta(days=1)
+        with _cost_summary_cache_lock:
+            _cost_summary_cache[month_key] = {
+                'expires': time.time() + (60.0 if target_date.year == datetime.now().year and target_date.month == datetime.now().month else 6 * 3600.0),
+                'electricity_cost_eur': monthly_electricity_cost,
+            }
+
+    return _json_nocache({
+        'date': target_date.strftime('%Y-%m-%d'),
+        'month': month_start.strftime('%Y-%m'),
+        'daily': {
+            'electricity_cost_eur': round(daily_electricity_cost, 4),
+            'gas_kwh': round(daily_gas_kwh, 3),
+            'gas_cost_eur': round(daily_gas_kwh * GAS_PRICE_EUR_PER_KWH, 4),
+            'total_cost_eur': round(daily_electricity_cost + daily_gas_kwh * GAS_PRICE_EUR_PER_KWH, 4),
+        },
+        'monthly': {
+            'electricity_cost_eur': round(monthly_electricity_cost, 4),
+            'gas_kwh': round(monthly_gas_kwh, 3),
+            'gas_cost_eur': round(monthly_gas_kwh * GAS_PRICE_EUR_PER_KWH, 4),
+            'total_cost_eur': round(monthly_electricity_cost + monthly_gas_kwh * GAS_PRICE_EUR_PER_KWH, 4),
+        },
+        'savings': {
+            'day': day_savings,
+            'month': month_savings,
+            'year': year_savings,
+        },
+        'gas_price_eur_per_kwh': GAS_PRICE_EUR_PER_KWH,
+    })
 
 
 @app.route("/gas_daily_data")
@@ -7822,8 +8064,6 @@ def get_gas_daily_data():
             target_month = now_local.month
 
         target_month = max(1, min(12, target_month))
-        refresh_gas_totals_from_raw_if_stale(target_year=target_year, target_month=target_month)
-
         conn = get_db_connection(DB_FILE_GAS_TOTALS)
         c = conn.cursor()
         c.execute('''
@@ -7873,8 +8113,6 @@ def get_gas_monthly_data():
         except Exception:
             target_year = datetime.now().year
 
-        refresh_gas_totals_from_raw_if_stale(target_year=target_year, target_month=None)
-
         start_month = f'{target_year}-01'
         end_month = f'{target_year + 1}-01'
 
@@ -7904,6 +8142,142 @@ def get_gas_monthly_data():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route("/gas_data")
+def get_gas_data():
+    """Return daily and monthly gas data after one shared totals refresh."""
+    try:
+        year_param = request.args.get('year')
+        month_param = request.args.get('month')
+
+        try:
+            target_year = int(year_param) if year_param is not None else datetime.now().year
+        except Exception:
+            target_year = datetime.now().year
+
+        try:
+            target_month = int(month_param) if month_param is not None else datetime.now().month
+        except Exception:
+            target_month = datetime.now().month
+
+        target_month = max(1, min(12, target_month))
+        month_start = f'{target_year:04d}-{target_month:02d}-01'
+        next_month = (
+            f'{target_year + 1:04d}-01-01'
+            if target_month == 12
+            else f'{target_year:04d}-{target_month + 1:02d}-01'
+        )
+        year_start = f'{target_year:04d}-01'
+        year_end = f'{target_year + 1:04d}-01'
+
+        conn = get_db_connection(DB_FILE_GAS_TOTALS)
+        cursor = conn.cursor()
+        cursor.execute(
+            '''SELECT date, usage_kwh
+               FROM gas_daily_totals
+               WHERE date >= ? AND date < ?
+               ORDER BY date''',
+            (month_start, next_month),
+        )
+        daily_rows = cursor.fetchall()
+        cursor.execute(
+            '''SELECT month, usage_kwh
+               FROM gas_monthly_totals
+               WHERE month >= ? AND month < ?
+               ORDER BY month''',
+            (year_start, year_end),
+        )
+        monthly_rows = cursor.fetchall()
+        conn.close()
+
+        daily_usage = {str(day): float(usage or 0.0) for day, usage in daily_rows if day}
+        month_usage = {str(month): float(usage or 0.0) for month, usage in monthly_rows if month}
+
+        month_date = datetime(target_year, target_month, 1)
+        month_end = (
+            datetime(target_year + 1, 1, 1)
+            if target_month == 12
+            else datetime(target_year, target_month + 1, 1)
+        )
+        daily = []
+        while month_date < month_end:
+            day_key = month_date.strftime('%Y-%m-%d')
+            daily.append({'date': day_key, 'usage_kwh': round(daily_usage.get(day_key, 0.0), 1)})
+            month_date += timedelta(days=1)
+
+        monthly = [
+            {
+                'month': f'{target_year}-{month_num:02d}',
+                'usage_kwh': round(month_usage.get(f'{target_year}-{month_num:02d}', 0.0), 1),
+            }
+            for month_num in range(1, 13)
+        ]
+        return jsonify({'daily': daily, 'monthly': monthly})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def refresh_gas_totals_for_day(day_timestamp):
+    """Update one day's gas totals in the background from the raw meter counter."""
+    raw_conn = None
+    gas_conn = None
+    try:
+        day_start = datetime.fromtimestamp(float(day_timestamp)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        day_end = day_start + timedelta(days=1)
+        raw_conn = get_db_connection(DB_FILE_RAW)
+        raw_cursor = raw_conn.cursor()
+        raw_cursor.execute(
+            '''SELECT MIN(gas_m3), MAX(gas_m3), COUNT(*)
+               FROM energy_data
+               WHERE gas_m3 IS NOT NULL AND timestamp >= ? AND timestamp < ?''',
+            (day_start.timestamp(), day_end.timestamp()),
+        )
+        min_gas, max_gas, sample_count = raw_cursor.fetchone() or (None, None, 0)
+        if min_gas is None or max_gas is None:
+            return
+
+        usage_m3 = max(0.0, float(max_gas) - float(min_gas))
+        if usage_m3 > GAS_MAX_DAILY_USAGE_M3:
+            usage_m3 = 0.0
+        day_key = day_start.strftime('%Y-%m-%d')
+        month_key = day_start.strftime('%Y-%m')
+        now_ts = time.time()
+
+        gas_conn = get_db_connection(DB_FILE_GAS_TOTALS, write=True)
+        gas_cursor = gas_conn.cursor()
+        gas_cursor.execute(
+            '''INSERT OR REPLACE INTO gas_daily_totals
+               (date, usage_m3, usage_kwh, sample_count, updated_at)
+               VALUES (?, ?, ?, ?, ?)''',
+            (day_key, usage_m3, usage_m3 * GAS_KWH_PER_M3, int(sample_count), now_ts),
+        )
+        gas_cursor.execute(
+            '''SELECT COALESCE(SUM(usage_m3), 0.0),
+                      COALESCE(SUM(usage_kwh), 0.0), COUNT(*)
+               FROM gas_daily_totals
+               WHERE date >= ? AND date < ?''',
+            (f'{month_key}-01',
+             f'{day_start.year + 1:04d}-01-01' if day_start.month == 12
+             else f'{day_start.year:04d}-{day_start.month + 1:02d}-01'),
+        )
+        month_usage_m3, month_usage_kwh, day_count = gas_cursor.fetchone() or (0.0, 0.0, 0)
+        gas_cursor.execute(
+            '''INSERT OR REPLACE INTO gas_monthly_totals
+               (month, usage_m3, usage_kwh, day_count, updated_at)
+               VALUES (?, ?, ?, ?, ?)''',
+            (month_key, float(month_usage_m3), float(month_usage_kwh), int(day_count), now_ts),
+        )
+        gas_conn.commit()
+    except Exception as e:
+        print(f'Gas daily rollup failed: {e}')
+    finally:
+        if raw_conn:
+            raw_conn.close()
+        if gas_conn:
+            gas_conn.close()
 
 
 def refresh_gas_totals_from_raw_if_stale(target_year=None, target_month=None, force=False):
@@ -8074,6 +8448,10 @@ _weekly_data_cache = {}
 _weekly_data_cache_lock = threading.Lock()
 _minute_data_cache = {}
 _minute_data_cache_lock = threading.Lock()
+_cost_data_cache = {}
+_cost_data_cache_lock = threading.Lock()
+_cost_summary_cache = {}
+_cost_summary_cache_lock = threading.Lock()
 # Must stay >= the frontend's 30s poll interval (see templates/index.html
 # setInterval near the minute-tab refresh) or every poll is a guaranteed
 # cache miss and reruns the full solar/battery/live-breakdown query chain.
@@ -8302,24 +8680,8 @@ def get_minute_data():
         except Exception:
             solar_yield_kwh = None
 
-    # Fetch daily off-peak/peak totals.
-    # For today: compute live from raw samples so the value always reflects the
-    # most recent P1 reading (daily_consumption is only updated every 5 minutes).
-    # For past days: read the pre-built daily_consumption row.
-    today_str = datetime.now().strftime('%Y-%m-%d')
+    # Fetch daily off-peak/peak totals from the pre-built daily table.
     daily_breakdown = None
-    if target_date.strftime('%Y-%m-%d') == today_str:
-        breakdown_key = (today_str, int(now_ts // 15))
-        if (
-            _live_daily_breakdown_cache.get('key') == breakdown_key
-            and now_ts < _live_daily_breakdown_cache.get('expires', 0.0)
-        ):
-            daily_breakdown = _live_daily_breakdown_cache.get('data')
-        else:
-            daily_breakdown = get_live_daily_breakdown(target_date)
-            _live_daily_breakdown_cache['key'] = breakdown_key
-            _live_daily_breakdown_cache['expires'] = now_ts + 15.0
-            _live_daily_breakdown_cache['data'] = daily_breakdown
     if daily_breakdown is None:
         try:
             conn_daily = get_db_connection(DB_FILE_DAILY)

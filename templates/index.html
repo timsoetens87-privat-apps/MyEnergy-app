@@ -946,8 +946,10 @@
                     <button onclick="previousDayCost()" class="btn btn-secondary btn-sm">Vorige Dag</button>
                     <input type="date" id="dateSelectorCost" onchange="changeDateCost()">
                     <button onclick="nextDayCost()" class="btn btn-secondary btn-sm">Volgende Dag</button>
-                    <span id="costSummary" class="ms-3 fw-bold"></span>
                 </div>
+                <div id="costSummary" class="mt-3 fw-bold">Dagtotalen laden...</div>
+                <div id="costMonthlySummary" class="mt-2 fw-bold">Maandtotalen laden...</div>
+                <div id="costSavingsSummary" class="mt-2">Besparingen laden...</div>
                 <div class="chart-container">
                     <canvas id="costChart"></canvas>
                 </div>
@@ -977,6 +979,7 @@
                     <canvas id="gasMonthlyChart"></canvas>
                 </div>
                 <div id="gasMonthlySummary" class="mt-3 fw-bold"></div>
+                <div id="gasYearSummary" class="mt-1 text-muted"></div>
             </div>
 
             <!-- Network Info Tab -->
@@ -4153,14 +4156,54 @@
                 dateInput.valueAsDate = selectedDateCost;
             }
 
+            async function fetchCostSummary(dateStr, priceSource, totalCost) {
+                try {
+                    const response = await fetch(`/cost_summary?date=${dateStr}`);
+                    const summary = await response.json();
+                    if (!response.ok || summary.error) {
+                        throw new Error(summary.error || 'Cost summary unavailable');
+                    }
+
+                    const daily = summary.daily || {};
+                    const monthly = summary.monthly || {};
+                    const savings = summary.savings || {};
+                    document.getElementById('costSummary').innerHTML = `
+                        <strong>Dag ${dateStr}</strong> | Elek: EUR ${Number(daily.electricity_cost_eur ?? totalCost).toFixed(2)} |
+                        Gas: ${Number(daily.gas_kwh || 0).toFixed(1)} kWh (EUR ${Number(daily.gas_cost_eur || 0).toFixed(2)}) |
+                        Totaal: EUR ${Number(daily.total_cost_eur ?? totalCost).toFixed(2)} |
+                        Bron elek: ${priceSource}
+                    `;
+                    document.getElementById('costMonthlySummary').innerHTML = `
+                        <strong>Maand ${summary.month || dateStr.slice(0, 7)}</strong> | Elek: EUR ${Number(monthly.electricity_cost_eur || 0).toFixed(2)} |
+                        Gas: ${Number(monthly.gas_kwh || 0).toFixed(1)} kWh (EUR ${Number(monthly.gas_cost_eur || 0).toFixed(2)}) |
+                        <strong>Totaal: EUR ${Number(monthly.total_cost_eur || 0).toFixed(2)}</strong>
+                    `;
+                    document.getElementById('costSavingsSummary').innerHTML = `
+                        <strong>Bespaarde energie</strong>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mt-1">
+                                <thead><tr><th>Periode</th><th>Zonnepanelen (kWh)</th><th>Batterij (kWh)</th><th>Totaal (kWh)</th></tr></thead>
+                                <tbody>
+                                    <tr><th>Dag</th><td>${Number(savings.day?.solar_kwh || 0).toFixed(1)}</td><td>${Number(savings.day?.battery_kwh || 0).toFixed(1)}</td><td>${Number(savings.day?.total_kwh || 0).toFixed(1)}</td></tr>
+                                    <tr><th>Maand</th><td>${Number(savings.month?.solar_kwh || 0).toFixed(1)}</td><td>${Number(savings.month?.battery_kwh || 0).toFixed(1)}</td><td>${Number(savings.month?.total_kwh || 0).toFixed(1)}</td></tr>
+                                    <tr><th>Jaar</th><td>${Number(savings.year?.solar_kwh || 0).toFixed(1)}</td><td>${Number(savings.year?.battery_kwh || 0).toFixed(1)}</td><td>${Number(savings.year?.total_kwh || 0).toFixed(1)}</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                } catch (error) {
+                    document.getElementById('costSummary').innerHTML = `Dag ${dateStr} | Samenvatting niet beschikbaar: ${error.message}`;
+                }
+            }
+
             async function fetchCostData(date, force = false) {
                 const dateStr = formatDateForAPI(date);
                 if (!force && costDataLoaded && lastCostDataKey === dateStr) {
                     return;
                 }
                 lastCostDataKey = dateStr;
-                const res = await fetch(`/cost_data?date=${dateStr}`);
-                const data = await res.json();
+                const costResponse = await fetch(`/cost_data?date=${dateStr}`);
+                const data = await costResponse.json();
 
                 const labels = data.map(d => d.time);
                 const costs = data.map(d => d.cost);
@@ -4171,13 +4214,6 @@
                 const totalCost = costs.reduce((a, b) => (b !== null ? a + b : a), 0);
                 const totalConsumption = costs.filter(c => c > 0).reduce((a, b) => a + b, 0);
                 const totalInjection = costs.filter(c => c < 0).reduce((a, b) => a + b, 0);
-
-                document.getElementById('costSummary').innerHTML = `
-                    Total Cost: EUR ${totalCost.toFixed(2)} | 
-                    Consumption: EUR ${totalConsumption.toFixed(2)} | 
-                    Injection Income: EUR ${(-totalInjection).toFixed(2)} |
-                    Source: ${priceSource}
-                `;
 
                 const consumptionCosts = costs.map(c => c !== null && c > 0 ? c : null);
                 const injectionCosts = costs.map(c => c !== null && c < 0 ? c : null);
@@ -4326,6 +4362,7 @@
                     }
                 });
 
+                fetchCostSummary(dateStr, priceSource, totalCost);
                 costDataLoaded = true;
                 window.setTimeout(() => {
                     if (typeof window.triggerChartResize === 'function') {
@@ -4438,11 +4475,14 @@
                 fetchGasMonthlyData();
             }
 
-            async function fetchGasDailyData() {
+            async function fetchGasDailyData(gasData = null) {
                 const year = selectedGasMonthDate.getFullYear();
                 const month = selectedGasMonthDate.getMonth() + 1;
-                const res = await fetch(`/gas_daily_data?year=${year}&month=${month}`);
-                const data = await res.json();
+                let data = gasData;
+                if (data === null) {
+                    const res = await fetch(`/gas_daily_data?year=${year}&month=${month}`);
+                    data = await res.json();
+                }
 
                 if (data.error) {
                     document.getElementById('gasSummary').innerHTML = `<span style="color:#ff6b6b;">Error: ${data.error}</span>`;
@@ -4524,9 +4564,12 @@
                 }, 0);
             }
 
-            async function fetchGasMonthlyData() {
-                const res = await fetch(`/gas_monthly_data?year=${selectedGasYear}`);
-                const data = await res.json();
+            async function fetchGasMonthlyData(gasData = null) {
+                let data = gasData;
+                if (data === null) {
+                    const res = await fetch(`/gas_monthly_data?year=${selectedGasYear}`);
+                    data = await res.json();
+                }
 
                 if (data.error) {
                     document.getElementById('gasMonthlySummary').innerHTML = `<span style="color:#ff6b6b;">Error: ${data.error}</span>`;
@@ -4604,6 +4647,8 @@
                 const avgUsage = usage.length ? (totalUsage / usage.length) : 0;
                 document.getElementById('gasMonthlySummary').innerText =
                     `Total (${usage.length} months): ${totalUsage.toFixed(1)} kWh | Average: ${avgUsage.toFixed(1)} kWh/month`;
+                document.getElementById('gasYearSummary').innerText =
+                    `Year ${selectedGasYear}: ${totalUsage.toFixed(1)} kWh total | ${avgUsage.toFixed(1)} kWh/month average`;
                 window.setTimeout(() => {
                     if (typeof window.triggerChartResize === 'function') {
                         window.triggerChartResize();
@@ -4612,7 +4657,19 @@
             }
 
             async function fetchGasTabData() {
-                await Promise.all([fetchGasDailyData(), fetchGasMonthlyData()]);
+                document.getElementById('gasSummary').innerText = 'Loading gas data...';
+                document.getElementById('gasMonthlySummary').innerText = 'Loading monthly gas data...';
+                document.getElementById('gasYearSummary').innerText = '';
+                const year = selectedGasMonthDate.getFullYear();
+                const month = selectedGasMonthDate.getMonth() + 1;
+                const response = await fetch(`/gas_data?year=${year}&month=${month}`);
+                const data = await response.json();
+                if (data.error) {
+                    document.getElementById('gasSummary').innerText = `Error: ${data.error}`;
+                    document.getElementById('gasMonthlySummary').innerText = '';
+                    return;
+                }
+                await Promise.all([fetchGasDailyData(data.daily), fetchGasMonthlyData(data.monthly)]);
             }
 
             initializeGasMonthSelector();
